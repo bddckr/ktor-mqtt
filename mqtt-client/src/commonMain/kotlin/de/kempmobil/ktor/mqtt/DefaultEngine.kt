@@ -73,6 +73,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     override fun close() {
         selectorManager.close()
+        scope.cancel()
     }
 
     override fun toString(): String {

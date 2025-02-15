@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.io.Buffer
 
@@ -90,6 +91,7 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
 
     override fun close() {
         client.close()
+        scope.cancel()
     }
 
     override fun toString(): String {

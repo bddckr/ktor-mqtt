@@ -54,7 +54,7 @@ kotlin {
 }
 
 android {
-    namespace = "de.kempmobil.ktor.mqtt"
+    namespace = "de.kempmobil.ktor.mqtt.core"
     compileSdk = 34
     defaultConfig {
         minSdk = 21

@@ -83,6 +83,8 @@ public class MqttClient internal constructor(
     private val isCleanStart: Boolean
         get() = true // TODO
 
+    private var keepAliveJob: Job? = null
+
     init {
         scope.launch {
             engine.packetResults.collect { result ->
@@ -192,6 +194,7 @@ public class MqttClient internal constructor(
     }
 
     public suspend fun disconnect(reasonCode: ReasonCode = NormalDisconnection, reason: String? = null) {
+        keepAliveJob?.cancel()
         engine.send(createDisconnect(reasonCode, reason))
         engine.disconnect()
     }
@@ -299,10 +302,12 @@ public class MqttClient internal constructor(
 
             val keepAlive = (connack.serverKeepAlive?.value ?: config.keepAliveSeconds).toInt().seconds
             if (keepAlive.inWholeSeconds > 0) {
-                scope.launch {
-                    delay(keepAlive)
-                    awaitResponseOf<Pingresp>(PacketType.PINGRESP) {
-                        engine.send(Pingreq)
+                keepAliveJob = scope.launch {
+                    while (true) {
+                        delay(keepAlive)
+                        awaitResponseOf<Pingresp>(PacketType.PINGRESP) {
+                            engine.send(Pingreq)
+                        }
                     }
                 }
             }
@@ -336,6 +341,7 @@ public class MqttClient internal constructor(
             } else {
                 Logger.e(throwable = throwable) { "Unexpected error while parsing a packet, disconnecting..." }
             }
+            keepAliveJob?.cancel()
             engine.disconnect()
         }
     }
@@ -345,6 +351,7 @@ public class MqttClient internal constructor(
         when (packet) {
             is Disconnect -> {
                 Logger.i { "Received DISCONNECT (${packet.reasonString.ifNull(packet.reason)}) from server, disconnecting..." }
+                keepAliveJob?.cancel()
                 engine.disconnect()
             }
 

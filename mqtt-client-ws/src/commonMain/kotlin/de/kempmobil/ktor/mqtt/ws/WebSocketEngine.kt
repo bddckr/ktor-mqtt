@@ -28,7 +28,7 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
 
     private val client: HttpClient = config.http()
 
-    private val _packetResults = MutableSharedFlow<Result<Packet>>()
+    private val _packetResults = MutableSharedFlow<Result<Packet>>(1)
     override val packetResults: SharedFlow<Result<Packet>>
         get() = _packetResults
 

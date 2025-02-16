@@ -91,7 +91,6 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
             it.close()
         }
         receiverJob?.cancel()
-        _connected.emit(false)
     }
 
     override fun close() {
@@ -149,6 +148,7 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
             }
         } finally {
             reader.cancel()
+            _connected.emit(false)
         }
     }
 

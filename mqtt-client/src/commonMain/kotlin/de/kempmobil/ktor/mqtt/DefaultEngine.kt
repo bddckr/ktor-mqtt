@@ -53,6 +53,8 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
                 }
             }
             Result.success(Unit)
+        } catch (ex: CancellationException) {
+            throw ex
         } catch (ex: Exception) {
             Result.failure(ConnectionException("Cannot connect to ${config.host}:${config.port}", ex))
         }
@@ -108,29 +110,31 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
     }
 
     private suspend fun ByteReadChannel.incomingMessageLoop() {
-        while (receiverJob?.isActive == true) {
-            try {
-                _packetResults.emit(Result.success(readPacket()))
-            } catch (ex: CancellationException) {
-                Logger.v { "Packet reader job has been cancelled, terminating..." }
-                break
-            } catch (ex: ClosedReceiveChannelException) {
-                Logger.v { "Read channel has been closed, terminating..." }
-                break
-            } catch (ex: EOFException) {
-                Logger.v { "End of stream detected, terminating..." }
-                break
-            } catch (ex: MalformedPacketException) {
-                // Continue with the loop, so that the client can decide what to do
-                _packetResults.emit(Result.failure(ex))
-            } catch (ex: Exception) {
-                Logger.w(throwable = ex) { "Read channel error detected, terminating..." }
-                break
+        try {
+            while (receiverJob?.isActive == true) {
+                try {
+                    _packetResults.emit(Result.success(readPacket()))
+                } catch (ex: CancellationException) {
+                    Logger.v { "Packet reader job has been cancelled, terminating..." }
+                    throw ex
+                } catch (ex: ClosedReceiveChannelException) {
+                    Logger.v { "Read channel has been closed, terminating..." }
+                    break
+                } catch (ex: EOFException) {
+                    Logger.v { "End of stream detected, terminating..." }
+                    break
+                } catch (ex: MalformedPacketException) {
+                    // Continue with the loop, so that the client can decide what to do
+                    _packetResults.emit(Result.failure(ex))
+                } catch (ex: Exception) {
+                    Logger.w(throwable = ex) { "Read channel error detected, terminating..." }
+                    break
+                }
             }
+        } finally {
+            Logger.d { "Incoming message loop terminated" }
+            disconnected()
         }
-
-        Logger.d { "Incoming message loop terminated" }
-        disconnected()
     }
 
     private suspend fun ByteWriteChannel.doSend(packet: Packet): Result<Unit> {
@@ -143,7 +147,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
         } catch (ex: CancellationException) {
             Logger.v { "Packet writer job has been cancelled during write operation" }
             disconnected()
-            Result.failure(ex)
+            throw ex
         } catch (ex: ClosedWriteChannelException) {
             Logger.w(throwable = ex) { "Write channel has been closed" }
             disconnected()

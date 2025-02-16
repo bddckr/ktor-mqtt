@@ -153,16 +153,17 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
         Logger.d { "Sending $packet..." }
 
         return try {
-            with(Buffer()) {
-                write(packet)
+            Buffer().use { buffer ->
+                buffer.write(packet)
 
-                if (size <= maxFrameSize) {
-                    outgoing.send(Frame.Binary(fin = true, packet = this))
+                if (buffer.size <= maxFrameSize) {
+                    outgoing.send(Frame.Binary(fin = true, packet = buffer))
                 } else {
-                    val frame = Buffer()
-                    while (size > 0) {
-                        readAtMostTo(frame, size.coerceAtMost(maxFrameSize))
-                        outgoing.send(Frame.Binary(fin = true, packet = frame))
+                    Buffer().use { frame ->
+                        while (buffer.size > 0) {
+                            buffer.readAtMostTo(frame, buffer.size.coerceAtMost(maxFrameSize))
+                            outgoing.send(Frame.Binary(fin = true, packet = frame))
+                        }
                     }
                 }
             }

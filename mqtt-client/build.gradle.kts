@@ -39,21 +39,13 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                implementation(project(":mqtt-core"))
-                implementation(libs.kermit)
-                implementation(libs.ktor.client.core)
-                implementation(libs.ktor.network)
-                implementation(libs.ktor.network.tls)
-                implementation(libs.kotlinx.datetime)
-                implementation(libs.kotlinx.io)
-                implementation(libs.kotlinx.coroutines.core)
+                api(projects.mqttCore)
             }
         }
         commonTest {
             dependencies {
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
-                implementation(libs.kotlinx.coroutines.core)
             }
         }
     }

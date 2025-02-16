@@ -38,13 +38,13 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-                implementation(libs.kermit)
-                implementation(libs.ktor.client.core)
-                implementation(libs.ktor.network)
-                implementation(libs.ktor.network.tls)
-                implementation(libs.kotlinx.io)
-                implementation(libs.kotlinx.datetime)
-                implementation(libs.kotlinx.coroutines.core)
+                api(libs.kermit)
+                api(libs.ktor.client.core)
+                api(libs.ktor.network)
+                api(libs.ktor.network.tls)
+                api(libs.kotlinx.io)
+                api(libs.kotlinx.datetime)
+                api(libs.kotlinx.coroutines.core)
             }
         }
         commonTest {

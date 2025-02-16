@@ -16,10 +16,10 @@ plugins {
 val repoDirectory by extra { "${project.rootDir}/repo" }
 
 dependencies {
-    kover(project(":mqtt-core"))
-    kover(project(":mqtt-client"))
-    kover(project(":mqtt-client-ws"))
-    kover(project(":mqtt-client-test"))
+    kover(projects.mqttCore)
+    kover(projects.mqttClient)
+    kover(projects.mqttClientWs)
+    kover(projects.mqttClientTest)
 }
 
 // Run for example with ./gradlew koverHtmlReport

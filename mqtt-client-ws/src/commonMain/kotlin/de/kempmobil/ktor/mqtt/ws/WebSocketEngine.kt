@@ -86,7 +86,10 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
     }
 
     override suspend fun disconnect() {
-        wsSession?.close()
+        wsSession?.let {
+            wsSession = null
+            it.close()
+        }
         receiverJob?.cancel()
         _connected.emit(false)
     }

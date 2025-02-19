@@ -25,14 +25,16 @@ kotlin {
         publishLibraryVariants("release", "debug")
     }
 
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach {
-        it.binaries.framework {
-            baseName = "base"
-            isStatic = true
+    if (project.hasProperty("enableIos")) {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64()
+        ).forEach {
+            it.binaries.framework {
+                baseName = "base"
+                isStatic = true
+            }
         }
     }
 

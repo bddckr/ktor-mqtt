@@ -6,17 +6,30 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
 
 
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,
-    private val engine: MqttEngine,
-    private val packetStore: PacketStore
+    engine: MqttEngine,
+    private val packetStore: PacketStore,
+    private val clock: Clock = Clock.System
 ) {
     public constructor(config: MqttClientConfig) :
             this(config, config.engine, InMemoryPacketStore())
+
+    private var keepAliveJob: Job? = null
+    @Volatile
+    private var lastActivity = clock.now()
+
+    private val engine = object : MqttEngine by engine {
+        override suspend fun send(packet: Packet): Result<Unit> {
+            lastActivity = clock.now()
+            return engine.send(packet)
+        }
+    }
 
     private val _publishedPackets = MutableSharedFlow<Publish>()
 
@@ -83,11 +96,10 @@ public class MqttClient internal constructor(
     private val isCleanStart: Boolean
         get() = true // TODO
 
-    private var keepAliveJob: Job? = null
-
     init {
         scope.launch {
             engine.packetResults.collect { result ->
+                lastActivity = clock.now()
                 handlePacketResult(result)
             }
         }
@@ -304,9 +316,31 @@ public class MqttClient internal constructor(
             if (keepAlive.inWholeSeconds > 0) {
                 keepAliveJob = scope.launch {
                     while (true) {
-                        delay(keepAlive)
-                        awaitResponseOf<Pingresp>(PacketType.PINGRESP) {
-                            engine.send(Pingreq)
+                        delay(keepAlive - (clock.now() - lastActivity))
+
+                        if (clock.now() - lastActivity < keepAlive)
+                            // Connection was active in the meantime
+                            continue
+
+                        Logger.v { "No activity for $keepAlive, sending PINGREQ" }
+                        val response = async {
+                            withTimeoutOrNull(config.pingResponseTimeout) {
+                                receivedPackets.first { it.type == PacketType.PINGRESP }
+                            }
+                        }
+
+                        val sendError = engine.send(Pingreq).exceptionOrNull()
+                        if (sendError != null) {
+                            Logger.e(throwable = sendError) { "Failed to send PINGREQ, disconnecting..." }
+                            engine.disconnect()
+                            break
+                        }
+
+                        // If a Client does not receive a PINGRESP packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server [MQTT-3.1.2.10]
+                        if (response.await() == null && config.pingResponseTimeout.inWholeSeconds > 0) {
+                            Logger.e { "Didn't receive PINGRESP within ${config.pingResponseTimeout}, disconnecting..." }
+                            engine.disconnect()
+                            break
                         }
                     }
                 }

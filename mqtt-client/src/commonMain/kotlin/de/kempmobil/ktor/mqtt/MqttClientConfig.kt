@@ -19,6 +19,7 @@ public interface MqttClientConfig {
     public val engine: MqttEngine
     public val dispatcher: CoroutineDispatcher
     public val clientId: String
+    public val pingResponseTimeout: Duration
     public val ackMessageTimeout: Duration
     public val willMessage: WillMessage?
     public val willOqS: QoS
@@ -54,6 +55,7 @@ public fun <T : MqttEngineConfig> buildConfig(
  * Mqtt client config builder
  *
  * @property dispatcher the coroutine dispatcher to use for background tasks
+ * @property pingResponseTimeout the time to wait for a PINGREQ message from the server, defaults to 0 seconds; non-positive values disable the timeout, effectively not disconnecting the client due to a missing PINGRESP
  * @property ackMessageTimeout the time to wait for an acknowledgment message from the server, defaults to 7 seconds
  * @property clientId the ID of this client, defaults to an empty string
  * @property keepAliveSeconds the value of keep alive in the connect message of this client, defaults to 0
@@ -79,6 +81,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
     private var loggerConfig: (MutableLoggerConfig.() -> Unit)? = null
 
     public var dispatcher: CoroutineDispatcher = Dispatchers.Default
+    public var pingResponseTimeout: Duration = 0.seconds
     public var ackMessageTimeout: Duration = 7.seconds
     public var clientId: String = ""
     public var keepAliveSeconds: UShort = 0u
@@ -128,6 +131,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
             engine = engine!!,
             dispatcher = dispatcher,
             clientId = clientId,
+            pingResponseTimeout = pingResponseTimeout,
             ackMessageTimeout = ackMessageTimeout,
             willMessage = willMessageBuilder?.build(),
             willOqS = willMessageBuilder?.willOqS ?: QoS.AT_MOST_ONCE,
@@ -152,6 +156,7 @@ private class MqttClientConfigImpl(
     override val engine: MqttEngine,
     override val dispatcher: CoroutineDispatcher,
     override val clientId: String,
+    override val pingResponseTimeout: Duration,
     override val ackMessageTimeout: Duration,
     override val willMessage: WillMessage?,
     override val willOqS: QoS,

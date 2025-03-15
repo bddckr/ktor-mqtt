@@ -1,10 +1,10 @@
 [versions]
-ktormqtt = "0.5.0"
+ktormqtt = "0.5.1"
 
 agp = "8.9.0"
 kotlin = "2.1.10"
 kotlinx-coroutines = "1.10.1"
-ktor = "3.1.0"
+ktor = "3.1.1"
 junit = "5.11.4"
 testcontainers = "1.20.4"
 slf4j = "2.0.16"
@@ -12,13 +12,13 @@ mockery = "2.7.0"
 versions = "0.52.0"
 kover = "0.9.1"
 vanniktech = "0.30.0"
-dokka = "1.9.20"
+dokka = "2.0.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
-kotlinx-datetime = "org.jetbrains.kotlinx:kotlinx-datetime:0.6.0"
+kotlinx-datetime = "org.jetbrains.kotlinx:kotlinx-datetime:0.6.2"
 kotlinx-io = "org.jetbrains.kotlinx:kotlinx-io-core:0.6.0"
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }

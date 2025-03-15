@@ -1,25 +1,63 @@
 package de.kempmobil.ktor.mqtt
 
 import co.touchlab.kermit.Severity
-import de.kempmobil.ktor.mqtt.packet.*
+import de.kempmobil.ktor.mqtt.packet.Packet
+import de.kempmobil.ktor.mqtt.packet.Pingreq
+import de.kempmobil.ktor.mqtt.packet.Publish
+import de.kempmobil.ktor.mqtt.packet.readPacket
+import de.kempmobil.ktor.mqtt.packet.write
 import de.kempmobil.ktor.mqtt.util.Logger
 import de.kempmobil.ktor.mqtt.util.toTopic
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
-import io.ktor.utils.io.*
-import kotlinx.coroutines.*
+import io.ktor.network.selector.SelectorManager
+import io.ktor.network.sockets.Socket
+import io.ktor.network.sockets.aSocket
+import io.ktor.network.sockets.openReadChannel
+import io.ktor.network.sockets.openWriteChannel
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.io.bytestring.encodeToByteString
-import kotlin.test.*
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlin.time.Duration.Companion.seconds
 
 class DefaultEngineTest {
 
     private val defaultHost = "localhost"
     private val defaultPort = 12345
+
+    private var stopServerJob: Job? = null
+
+    @AfterTest
+    fun cleanup() {
+        stopServerJob?.run {
+            stopServerJob = null
+            runBlocking {
+                withTimeout(1.seconds) {
+                    start()
+                    join()
+                }
+            }
+        }
+    }
 
     @Test
     fun `the initial connection state is disconnected`() {
@@ -38,37 +76,39 @@ class DefaultEngineTest {
 
     @Test
     fun `when the server is reachable return success`() = runTest {
-        val closeServer = startServer(this)
+        stopServerJob = startServer()
         val engine = MqttEngine()
         val result = engine.start()
 
         assertTrue(result.isSuccess)
         assertTrue(engine.connected.value)
-
-        closeServer.start()
     }
 
     @Test
     fun `when terminating a connected session the connection state is updated`() = runTest {
-        val closeServer = startServer(this)
+        stopServerJob = startServer()
         val engine = MqttEngine()
         val result = engine.start()
 
         assertTrue(result.isSuccess)
         assertTrue(engine.connected.value)
 
-        closeServer.start()
+        stopServerJob?.start()
+        stopServerJob?.join()
+        stopServerJob = null
 
         withContext(Dispatchers.Default) { // See runTest { } on why we need this
             withTimeout(1.seconds) {       // It takes a few millis until the connection is actually closed
                 engine.connected.first { isConnected -> !isConnected }
             }
         }
+        // No need for an assertion here, as the test will fail with a TimeoutCancellationException when
+        // not receiving the disconnection event.
     }
 
     @Test
     fun `when disconnecting a connected session the connection state is updated`() = runTest {
-        val closeServer = startServer(this)
+        stopServerJob = startServer()
         val engine = MqttEngine()
         val result = engine.start()
 
@@ -77,18 +117,14 @@ class DefaultEngineTest {
 
         engine.disconnect()
 
-        assertFalse(engine.connected.first())
-
-        closeServer.start() // Cleanup
+        assertFalse(engine.connected.value)
     }
 
     @Test
     fun `when sending a packet it is received by server`() = runTest {
-        val serverPackets = MutableSharedFlow<Packet>()
-        val closeServer = startServer(this, reader = {
-            backgroundScope.launch {
-                serverPackets.emit(readPacket())
-            }
+        val serverPackets = MutableSharedFlow<Packet>(replay = 1)
+        stopServerJob = startServer(reader = {
+            serverPackets.emit(readPacket())
         })
 
         val expected = Publish(topic = "test-topic".toTopic(), payload = "1234567890".encodeToByteString())
@@ -98,18 +134,14 @@ class DefaultEngineTest {
 
         val actual = serverPackets.first()
         assertEquals(expected, actual)
-
-        closeServer.start()
     }
 
     @Test
     fun `when the server sends a packet the received packets are updated`() = runTest {
         val serverPackets = MutableSharedFlow<Packet>(replay = 1)
-        val closeServer = startServer(this, writer = {
-            backgroundScope.launch {
-                serverPackets.collect {
-                    write(it)
-                }
+        stopServerJob = startServer(writer = {
+            serverPackets.collect {
+                write(it)
             }
         })
 
@@ -120,25 +152,15 @@ class DefaultEngineTest {
 
         val actual = engine.packetResults.first()
         assertEquals(expected, actual.getOrNull())
-
-        closeServer.start()
     }
 
     @Test
-    fun `when receiving a malformed packet the connection is terminated with a disconnect packet`() = runTest {
+    fun `when receiving a malformed packet return a MalformedPacketException`() = runTest {
         val dataToSend = MutableSharedFlow<ByteArray>(replay = 1)
-        val receivedPackets = MutableSharedFlow<Packet>()
 
-        val closeServer = startServer(this, writer = {
-            CoroutineScope(Dispatchers.Default).launch {
-                delay(100)
-                dataToSend.collect {
-                    writeFully(it)
-                }
-            }
-        }, reader = {
-            backgroundScope.launch {
-                receivedPackets.emit(readPacket())
+        stopServerJob = startServer(writer = {
+            dataToSend.collect {
+                writeFully(it)
             }
         })
 
@@ -149,13 +171,11 @@ class DefaultEngineTest {
         val result = engine.packetResults.first()
         assertTrue(result.isFailure)
         assertIs<MalformedPacketException>(result.exceptionOrNull())
-
-        closeServer.start()
     }
 
     @Test
     fun `when calling send on a disconnected connection return a failure`() = runTest {
-        val closeServer = startServer(this)
+        stopServerJob = startServer()
         val engine = MqttEngine()
         engine.start()
         engine.disconnect()
@@ -163,8 +183,6 @@ class DefaultEngineTest {
         val result = engine.send(Pingreq)
         assertTrue(result.isFailure)
         assertIs<ConnectionException>(result.exceptionOrNull())
-
-        closeServer.start()
     }
 
     // ---- Helper functions -------------------------------------------------------------------------------------------
@@ -180,34 +198,37 @@ class DefaultEngineTest {
     /**
      * Starts a socket server and returns an (unstarted) [Job] to stop it.
      */
-    private suspend fun startServer(
-        testScope: TestScope,
-        reader: (ByteReadChannel.() -> Unit)? = null,
-        writer: (ByteWriteChannel.() -> Unit)? = null
+    private suspend fun TestScope.startServer(
+        reader: (suspend ByteReadChannel.() -> Unit)? = null,
+        writer: (suspend ByteWriteChannel.() -> Unit)? = null
     ): Job {
-        try {
-            val selectorManager = SelectorManager(Dispatchers.Default)
-            val serverSocket = aSocket(selectorManager).tcp().bind(defaultHost, defaultPort)
+        val selectorManager = SelectorManager(Dispatchers.Default)
+        val serverSocket = aSocket(selectorManager).tcp().bind(defaultHost, defaultPort)
+        var socket: Socket? = null
 
-            val socketAcceptor = testScope.async {
-                serverSocket.accept().also { socket ->
+        backgroundScope.launch {
+            try {
+                socket = serverSocket.accept().also { accepted ->
+                    Logger.d { "Client connected successfully" }
                     if (reader != null) {
-                        socket.openReadChannel().reader()
+                        accepted.openReadChannel().reader()
                     }
                     if (writer != null) {
-                        socket.openWriteChannel(autoFlush = true).writer()
+                        accepted.openWriteChannel(autoFlush = true).writer()
                     }
                 }
+            } catch (ex: CancellationException) {
+                // ignore
+            } catch (ex: Exception) {
+                fail("Cannot create server socket [$defaultHost:$defaultPort]", ex)
             }
+        }
 
-            return testScope.launch(start = CoroutineStart.LAZY) {
-                socketAcceptor.await().close()
-                serverSocket.dispose()
-                selectorManager.close()
-            }
-        } catch (ex: Exception) {
-            ex.printStackTrace()
-            throw ex
+        // Don't use TestScope here, as this might get canceled after test execution!
+        return CoroutineScope(Dispatchers.Default).launch(start = CoroutineStart.LAZY) {
+            socket?.close()
+            serverSocket.close()
+            selectorManager.close()
         }
     }
 }

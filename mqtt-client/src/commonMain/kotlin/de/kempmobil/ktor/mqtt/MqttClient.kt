@@ -2,6 +2,7 @@ package de.kempmobil.ktor.mqtt
 
 import de.kempmobil.ktor.mqtt.packet.*
 import de.kempmobil.ktor.mqtt.util.Logger
+import kotlin.time.Duration
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -9,7 +10,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
-
 
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,
@@ -25,10 +25,10 @@ public class MqttClient internal constructor(
     private var lastActivity = clock.now()
 
     private val engine = object : MqttEngine by engine {
-        override suspend fun send(packet: Packet): Result<Unit> {
-            lastActivity = clock.now()
-            return engine.send(packet)
-        }
+        override suspend fun send(packet: Packet): Result<Unit> =
+            engine.send(packet).also {
+                lastActivity = clock.now()
+            }
     }
 
     private val _publishedPackets = MutableSharedFlow<Publish>()
@@ -313,13 +313,13 @@ public class MqttClient internal constructor(
             _serverTopicAliasMaximum = connack.topicAliasMaximum ?: TopicAliasMaximum(0u)
 
             val keepAlive = (connack.serverKeepAlive?.value ?: config.keepAliveSeconds).toInt().seconds
-            if (keepAlive.inWholeSeconds > 0) {
+            if (keepAlive > Duration.ZERO) {
                 keepAliveJob = scope.launch {
                     while (true) {
-                        delay(keepAlive - (clock.now() - lastActivity))
+                        delay(lastActivity + keepAlive - clock.now())
 
-                        if (clock.now() - lastActivity < keepAlive)
-                            // Connection was active in the meantime
+                        if (lastActivity + keepAlive > clock.now())
+                            // There was some activity while we waited, so don't send a PINGREQ just yet
                             continue
 
                         Logger.v { "No activity for $keepAlive, sending PINGREQ" }
@@ -337,7 +337,7 @@ public class MqttClient internal constructor(
                         }
 
                         // If a Client does not receive a PINGRESP packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server [MQTT-3.1.2.10]
-                        if (response.await() == null && config.pingResponseTimeout.inWholeSeconds > 0) {
+                        if (response.await() == null && config.pingResponseTimeout > Duration.ZERO) {
                             Logger.e { "Didn't receive PINGRESP within ${config.pingResponseTimeout}, disconnecting..." }
                             engine.disconnect()
                             break

@@ -143,7 +143,7 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
                     // Continue with the loop, so that the client can decide what to do
                     _packetResults.emit(Result.failure(ex))
                 } catch (ex: Exception) {
-                    Logger.e(throwable = ex) { "Error while receiving messages: " + ex::class }
+                    Logger.e(throwable = ex) { "Error while receiving messages: " + ex::class.simpleName }
                     disconnect()
                 }
             }

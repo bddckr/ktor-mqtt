@@ -27,7 +27,7 @@ internal inline fun <reified T : Property<*>> List<Property<*>>.single(): T {
     return if (instances.size == 1) {
         instances.first()
     } else {
-        throw MalformedPacketException("Property of type: ${T::class} is not contained exactly once: ${instances.size}")
+        throw MalformedPacketException("Property of type: ${T::class.simpleName} is not contained exactly once: ${instances.size}")
     }
 }
 

@@ -332,14 +332,14 @@ public class MqttClient internal constructor(
                         val sendError = engine.send(Pingreq).exceptionOrNull()
                         if (sendError != null) {
                             Logger.e(throwable = sendError) { "Failed to send PINGREQ, disconnecting..." }
-                            engine.disconnect()
+                            disconnect(KeepAliveTimeout)
                             break
                         }
 
                         // If a Client does not receive a PINGRESP packet within a reasonable amount of time after it has sent a PINGREQ, it SHOULD close the Network Connection to the Server [MQTT-3.1.2.10]
                         if (response.await() == null && config.pingResponseTimeout > Duration.ZERO) {
                             Logger.e { "Didn't receive PINGRESP within ${config.pingResponseTimeout}, disconnecting..." }
-                            engine.disconnect()
+                            disconnect(KeepAliveTimeout)
                             break
                         }
                     }

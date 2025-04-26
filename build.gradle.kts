@@ -22,6 +22,8 @@ dependencies {
     kover(projects.mqttClientTest)
 }
 
+group = "de.kempmobil.ktor.mqtt"
+
 // Run for example with ./gradlew koverHtmlReport
 kover {
     reports {
@@ -37,6 +39,8 @@ kover {
 }
 
 allprojects {
+    group = "de.kempmobil.ktor.mqtt"
+
     plugins.withId("com.vanniktech.maven.publish.base") {
         configure<MavenPublishBaseExtension> {
             publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)

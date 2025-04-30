@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -256,7 +257,7 @@ class MqttClientTest {
             ackMessageTimeout = 100.milliseconds
             clientId = id ?: ""
         }
-        return MqttClient(config, connection, InMemoryPacketStore())
+        return MqttClient(config, connection, InMemoryPacketStore(), Clock.System)
     }
 
     /**

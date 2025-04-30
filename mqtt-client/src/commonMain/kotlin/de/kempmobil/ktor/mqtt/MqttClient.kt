@@ -15,10 +15,10 @@ public class MqttClient internal constructor(
     private val config: MqttClientConfig,
     engine: MqttEngine,
     private val packetStore: PacketStore,
-    private val clock: Clock = Clock.System
+    private val clock: Clock,
 ) {
     public constructor(config: MqttClientConfig) :
-            this(config, config.engine, InMemoryPacketStore())
+        this(config, config.engine, InMemoryPacketStore(), Clock.System)
 
     private var keepAliveJob: Job? = null
     @Volatile

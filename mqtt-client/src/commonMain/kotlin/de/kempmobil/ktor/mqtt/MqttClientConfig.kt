@@ -40,9 +40,6 @@ public interface MqttClientConfig {
 
 /**
  * DSL for creating an MQTT client configuration.
- *
- * @param host the host to connect to
- * @param port the port to connect to, defaults to 1883
  */
 public fun <T : MqttEngineConfig> buildConfig(
     connectionFactory: MqttEngineFactory<T>,

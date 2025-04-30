@@ -121,7 +121,7 @@ public class MqttClient internal constructor(
                     engine.send(createConnect())
                 }.onSuccess {
                     inspectConnack(it)
-                }.getOrElse() {
+                }.getOrElse {
                     throw it
                 }
             }
@@ -145,9 +145,8 @@ public class MqttClient internal constructor(
     ): Result<Suback> {
         val identifier = if ((subscriptionIdentifier != null) && !subscriptionIdentifierAvailable) {
             Logger.w(
-                throwable = IllegalArgumentException("Ignoring $subscriptionIdentifier"),
-                { "Ignoring subscription identifier, as the server doesn't support it" }
-            )
+                throwable = IllegalArgumentException("Ignoring $subscriptionIdentifier")
+            ) { "Ignoring subscription identifier, as the server doesn't support it" }
             null
         } else {
             subscriptionIdentifier
@@ -176,7 +175,6 @@ public class MqttClient internal constructor(
         }
 
         return createPublish(request).map { publish ->
-
             when (publish.qoS) {
                 QoS.AT_MOST_ONCE -> {
                     engine.send(publish)

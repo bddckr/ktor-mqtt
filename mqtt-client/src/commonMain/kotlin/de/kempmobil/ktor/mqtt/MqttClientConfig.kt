@@ -52,7 +52,7 @@ public fun <T : MqttEngineConfig> buildConfig(
  * Mqtt client config builder
  *
  * @property dispatcher the coroutine dispatcher to use for background tasks
- * @property pingResponseTimeout the time to wait for a PINGREQ message from the server, defaults to 0 seconds; non-positive values disable the timeout, effectively not disconnecting the client due to a missing PINGRESP
+ * @property pingResponseTimeout the time to wait for a PINGREQ message from the server, defaults to 0 seconds; non-positive values disable the waiting for a PINGRESP message altogether
  * @property ackMessageTimeout the time to wait for an acknowledgment message from the server, defaults to 7 seconds
  * @property clientId the ID of this client, defaults to an empty string
  * @property keepAliveSeconds the value of keep alive in the connect message of this client, defaults to 0

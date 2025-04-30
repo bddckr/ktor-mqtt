@@ -3,14 +3,14 @@ package de.kempmobil.ktor.mqtt
 import co.touchlab.kermit.MutableLoggerConfig
 import de.kempmobil.ktor.mqtt.util.Logger
 import de.kempmobil.ktor.mqtt.util.MqttDslMarker
-import io.ktor.network.sockets.*
-import io.ktor.network.tls.*
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.io.bytestring.ByteString
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.io.bytestring.ByteString
 
 /**
  * Mqtt client configuration, see [buildConfig]
@@ -18,6 +18,7 @@ import kotlin.time.Duration.Companion.seconds
 public interface MqttClientConfig {
     public val engine: MqttEngine
     public val dispatcher: CoroutineDispatcher
+    public val delayForKeepAlive: suspend (keepAlive: Duration, clock: Clock, getLastActivity: () -> Instant) -> Unit
     public val clientId: String
     public val pingResponseTimeout: Duration
     public val ackMessageTimeout: Duration
@@ -52,6 +53,7 @@ public fun <T : MqttEngineConfig> buildConfig(
  * Mqtt client config builder
  *
  * @property dispatcher the coroutine dispatcher to use for background tasks
+ * @property delayForKeepAlive a function that is called to delay the sending of a PINGREQ message, defaults to a function that delays until the next keep alive interval
  * @property pingResponseTimeout the time to wait for a PINGREQ message from the server, defaults to 0 seconds; non-positive values disable the waiting for a PINGRESP message altogether
  * @property ackMessageTimeout the time to wait for an acknowledgment message from the server, defaults to 7 seconds
  * @property clientId the ID of this client, defaults to an empty string
@@ -78,6 +80,16 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
     private var loggerConfig: (MutableLoggerConfig.() -> Unit)? = null
 
     public var dispatcher: CoroutineDispatcher = Dispatchers.Default
+    public var delayForKeepAlive: suspend (keepAlive: Duration, clock: Clock, getLastActivity: () -> Instant) -> Unit = { keepAlive, clock, getLastActivity ->
+        while (true) {
+            val duration = getLastActivity() + keepAlive - clock.now()
+            if (duration < Duration.ZERO) {
+                // There was some activity while we waited previously, so don't send a PINGREQ just yet
+                break
+            }
+            delay(duration)
+        }
+    }
     public var pingResponseTimeout: Duration = 0.seconds
     public var ackMessageTimeout: Duration = 7.seconds
     public var clientId: String = ""
@@ -127,6 +139,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
         return MqttClientConfigImpl(
             engine = engine!!,
             dispatcher = dispatcher,
+            delayForKeepAlive = delayForKeepAlive,
             clientId = clientId,
             pingResponseTimeout = pingResponseTimeout,
             ackMessageTimeout = ackMessageTimeout,
@@ -152,6 +165,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
 private class MqttClientConfigImpl(
     override val engine: MqttEngine,
     override val dispatcher: CoroutineDispatcher,
+    override val delayForKeepAlive: suspend (keepAlive: Duration, clock: Clock, getLastActivity: () -> Instant) -> Unit,
     override val clientId: String,
     override val pingResponseTimeout: Duration,
     override val ackMessageTimeout: Duration,

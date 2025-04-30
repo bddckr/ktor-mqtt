@@ -1,15 +1,41 @@
 package de.kempmobil.ktor.mqtt
 
-import de.kempmobil.ktor.mqtt.packet.*
+import de.kempmobil.ktor.mqtt.packet.Connack
+import de.kempmobil.ktor.mqtt.packet.Connect
+import de.kempmobil.ktor.mqtt.packet.Disconnect
+import de.kempmobil.ktor.mqtt.packet.Packet
+import de.kempmobil.ktor.mqtt.packet.PacketType
+import de.kempmobil.ktor.mqtt.packet.Pingreq
+import de.kempmobil.ktor.mqtt.packet.Puback
+import de.kempmobil.ktor.mqtt.packet.Pubcomp
+import de.kempmobil.ktor.mqtt.packet.Publish
+import de.kempmobil.ktor.mqtt.packet.Pubrec
+import de.kempmobil.ktor.mqtt.packet.Pubrel
+import de.kempmobil.ktor.mqtt.packet.Suback
+import de.kempmobil.ktor.mqtt.packet.Subscribe
+import de.kempmobil.ktor.mqtt.packet.Unsuback
+import de.kempmobil.ktor.mqtt.packet.Unsubscribe
+import de.kempmobil.ktor.mqtt.packet.isResponseFor
 import de.kempmobil.ktor.mqtt.util.Logger
 import kotlin.time.Duration
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.datetime.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.datetime.Clock
 
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,
@@ -314,11 +340,7 @@ public class MqttClient internal constructor(
             if (keepAlive > Duration.ZERO) {
                 keepAliveJob = scope.launch {
                     while (true) {
-                        delay(lastActivity + keepAlive - clock.now())
-
-                        if (lastActivity + keepAlive > clock.now())
-                            // There was some activity while we waited, so don't send a PINGREQ just yet
-                            continue
+                        config.delayForKeepAlive(keepAlive, clock) { lastActivity }
 
                         Logger.v { "No activity for $keepAlive, sending PINGREQ" }
                         val response = async {

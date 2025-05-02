@@ -39,7 +39,7 @@ import kotlinx.datetime.Clock
 
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,
-    engine: MqttEngine,
+    private val engine: MqttEngine,
     private val packetStore: PacketStore,
     private val clock: Clock,
 ) {
@@ -49,13 +49,6 @@ public class MqttClient internal constructor(
     private var keepAliveJob: Job? = null
     @Volatile
     private var lastActivity = clock.now()
-
-    private val engine = object : MqttEngine by engine {
-        override suspend fun send(packet: Packet): Result<Unit> =
-            engine.send(packet).also {
-                lastActivity = clock.now()
-            }
-    }
 
     private val _publishedPackets = MutableSharedFlow<Publish>()
 
@@ -362,6 +355,8 @@ public class MqttClient internal constructor(
                             disconnect(KeepAliveTimeout)
                             break
                         }
+
+                        lastActivity = clock.now()
                     }
                 }
             }

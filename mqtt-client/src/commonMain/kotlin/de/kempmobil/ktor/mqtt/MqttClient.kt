@@ -215,7 +215,7 @@ public class MqttClient internal constructor(
                         engine.send(publish)
                     }.getOrThrow()
                     val pubrel = packetStore.replace(publish)
-                    awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(publish) }) {
+                    awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(pubrel) }) {
                         engine.send(pubrel)
                     }.getOrThrow()
                     packetStore.acknowledge(pubrel)

@@ -41,6 +41,9 @@ public interface MqttClientConfig {
 
 /**
  * DSL for creating an MQTT client configuration.
+ *
+ * @param connectionFactory the connection factory to use, usually [DefaultEngineFactory].
+ * @param init DSL for configuring the client
  */
 public fun <T : MqttEngineConfig> buildConfig(
     connectionFactory: MqttEngineFactory<T>,

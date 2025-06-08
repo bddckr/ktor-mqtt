@@ -48,6 +48,12 @@ public sealed class PublishResponse(
     override fun toString(): String {
         return "${this::class.simpleName}(packetIdentifier=$packetIdentifier, reason=$reason, reasonString=$reasonString, userProperties=$userProperties)"
     }
+
+    public fun throwIfError() {
+        if (reason != Success) {
+            throw PublishResponseException(this)
+        }
+    }
 }
 
 public class Puback(

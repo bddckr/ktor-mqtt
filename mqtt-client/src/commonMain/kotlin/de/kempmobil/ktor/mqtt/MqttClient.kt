@@ -204,7 +204,9 @@ public class MqttClient internal constructor(
                     packetStore.store(publish)
                     awaitResponseOf<Puback>({ it.isResponseFor<Puback>(publish) }) {
                         engine.send(publish)
-                    }.getOrThrow()
+                    }
+                        .getOrThrow()
+                        .throwIfError()
                     packetStore.acknowledge(publish)
                     QoS.AT_LEAST_ONCE
                 }
@@ -213,11 +215,15 @@ public class MqttClient internal constructor(
                     packetStore.store(publish)
                     awaitResponseOf<Pubrec>({ it.isResponseFor<Pubrec>(publish) }) {
                         engine.send(publish)
-                    }.getOrThrow()
+                    }
+                        .getOrThrow()
+                        .throwIfError()
                     val pubrel = packetStore.replace(publish)
                     awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(pubrel) }) {
                         engine.send(pubrel)
-                    }.getOrThrow()
+                    }
+                        .getOrThrow()
+                        .throwIfError()
                     packetStore.acknowledge(pubrel)
                     QoS.EXACTLY_ONE
                 }

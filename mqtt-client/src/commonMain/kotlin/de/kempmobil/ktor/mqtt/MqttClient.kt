@@ -193,7 +193,7 @@ public class MqttClient internal constructor(
             return Result.failure(ConnectionException("Cannot send PUBLISH packet while not connected"))
         }
 
-        return createPublish(request).map { publish ->
+        return createPublish(request).mapCatching { publish ->
             when (publish.qoS) {
                 QoS.AT_MOST_ONCE -> {
                     engine.send(publish)
@@ -202,19 +202,22 @@ public class MqttClient internal constructor(
 
                 QoS.AT_LEAST_ONCE -> {
                     packetStore.store(publish)
-                    engine.send(publish)
-                    receivedPackets.first { it.isResponseFor<Puback>(publish) }
+                    awaitResponseOf<Puback>({ it.isResponseFor<Puback>(publish) }) {
+                        engine.send(publish)
+                    }.getOrThrow()
                     packetStore.acknowledge(publish)
                     QoS.AT_LEAST_ONCE
                 }
 
                 QoS.EXACTLY_ONE -> {
                     packetStore.store(publish)
-                    engine.send(publish)
-                    receivedPackets.first { it.isResponseFor<Pubrec>(publish) }
+                    awaitResponseOf<Pubrec>({ it.isResponseFor<Pubrec>(publish) }) {
+                        engine.send(publish)
+                    }.getOrThrow()
                     val pubrel = packetStore.replace(publish)
-                    engine.send(pubrel)
-                    receivedPackets.first { it.isResponseFor<Pubcomp>(publish) }
+                    awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(publish) }) {
+                        engine.send(pubrel)
+                    }.getOrThrow()
                     packetStore.acknowledge(pubrel)
                     QoS.EXACTLY_ONE
                 }

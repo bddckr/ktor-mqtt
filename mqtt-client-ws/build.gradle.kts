@@ -14,6 +14,11 @@ plugins {
 
 kotlin {
     explicitApi()
+
+    compilerOptions {
+        optIn.add("kotlin.time.ExperimentalTime")
+    }
+
     jvm()
     androidTarget {
         compilations.all {

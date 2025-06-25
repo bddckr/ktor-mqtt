@@ -17,6 +17,7 @@ import de.kempmobil.ktor.mqtt.packet.Unsuback
 import de.kempmobil.ktor.mqtt.packet.Unsubscribe
 import de.kempmobil.ktor.mqtt.packet.isResponseFor
 import de.kempmobil.ktor.mqtt.util.Logger
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
@@ -35,7 +36,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.datetime.Clock
 
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,

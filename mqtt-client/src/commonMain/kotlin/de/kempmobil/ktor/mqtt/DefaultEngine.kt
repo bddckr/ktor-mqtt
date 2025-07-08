@@ -4,17 +4,29 @@ import de.kempmobil.ktor.mqtt.packet.Packet
 import de.kempmobil.ktor.mqtt.packet.readPacket
 import de.kempmobil.ktor.mqtt.packet.write
 import de.kempmobil.ktor.mqtt.util.Logger
-import io.ktor.network.selector.*
-import io.ktor.network.sockets.*
-import io.ktor.network.tls.*
-import io.ktor.utils.io.*
-import kotlinx.coroutines.*
+import io.ktor.network.selector.SelectorManager
+import io.ktor.network.sockets.Socket
+import io.ktor.network.sockets.aSocket
+import io.ktor.network.sockets.openReadChannel
+import io.ktor.network.sockets.openWriteChannel
+import io.ktor.network.tls.tls
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.ClosedWriteChannelException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.io.EOFException
 
 internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngine {
@@ -29,7 +41,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     private val selectorManager = SelectorManager(config.dispatcher)
 
-    private var scope = CoroutineScope(config.dispatcher)
+    private val scope = CoroutineScope(config.dispatcher)
 
     private var sendChannel: ByteWriteChannel? = null
 
@@ -39,9 +51,6 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     override suspend fun start(): Result<Unit> {
         return try {
-            if (!scope.isActive) {
-                scope = CoroutineScope(config.dispatcher)
-            }
             socket = scope.async {
                 val socket = openSocket()
                 _connected.emit(true)

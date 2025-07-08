@@ -35,4 +35,7 @@ include(":mqtt-core")
 include(":mqtt-client")
 include(":mqtt-client-ws")
 include(":mqtt-client-test")
-include(":mqtt-app")
+
+if (System.getenv("INCLUDE_SAMPLE")?.toBoolean() == true) {
+    include(":mqtt-app")
+}

@@ -20,11 +20,9 @@ kotlin {
 
     jvm()
     androidTarget {
-        compilations.all {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
-                }
+        compilations {
+            compilerOptions {
+                jvmTarget.set(JvmTarget.JVM_1_8)
             }
         }
         publishLibraryVariants("release", "debug")

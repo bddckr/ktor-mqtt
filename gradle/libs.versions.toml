@@ -1,5 +1,5 @@
 [versions]
-ktormqtt = "0.6.1"
+ktormqtt = "0.6.2"
 
 agp = "8.10.1"
 kotlin = "2.2.0"
@@ -13,6 +13,16 @@ versions = "0.52.0"
 kover = "0.9.1"
 vanniktech = "0.33.0"
 dokka = "2.0.0"
+
+# Multiplatform app library versions
+android-compileSdk = "35"
+android-minSdk = "24"
+android-targetSdk = "35"
+androidx-activity = "1.10.1"
+androidx-lifecycle = "2.9.1"
+androidx-material = "1.7.3"
+composeHotReload = "1.0.0-alpha11"
+composeMultiplatform = "1.8.2"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -41,6 +51,14 @@ testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.re
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
+# Multiplatform app libraries
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
+androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-compose-material-icons = { module = "org.jetbrains.compose.material:material-icons-core", version.ref = "androidx-material" }
+kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
+
 [plugins]
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
@@ -50,3 +68,9 @@ versions = { id = "com.github.ben-manes.versions", version.ref = "versions" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 vanniktech = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+
+# Multiplatform app plugins
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

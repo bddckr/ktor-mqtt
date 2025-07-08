@@ -23,7 +23,7 @@ kotlin {
         }
     }
 
-    if (project.hasProperty("enableIos")) {
+    if (System.getenv("INCLUDE_IOS")?.toBoolean() == true) {
         listOf(
             iosX64(),
             iosArm64(),

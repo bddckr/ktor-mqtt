@@ -49,7 +49,6 @@ kotlin {
                 api(libs.ktor.network)
                 api(libs.ktor.network.tls)
                 api(libs.kotlinx.io)
-                api(libs.kotlinx.datetime)
                 api(libs.kotlinx.coroutines.core)
             }
         }

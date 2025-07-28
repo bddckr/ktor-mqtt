@@ -163,9 +163,9 @@ public class MqttClient internal constructor(
         userProperties: UserProperties = UserProperties.EMPTY
     ): Result<Suback> {
         val identifier = if ((subscriptionIdentifier != null) && !subscriptionIdentifierAvailable) {
-            Logger.w(
-                throwable = IllegalArgumentException("Ignoring $subscriptionIdentifier")
-            ) { "Ignoring subscription identifier, as the server doesn't support it" }
+            Logger.w(throwable = IllegalArgumentException("Ignoring $subscriptionIdentifier")) {
+                "Ignoring subscription identifier, as the server doesn't support it"
+            }
             null
         } else {
             subscriptionIdentifier

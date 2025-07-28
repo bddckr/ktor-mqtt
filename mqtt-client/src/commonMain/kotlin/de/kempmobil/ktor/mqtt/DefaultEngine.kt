@@ -13,6 +13,7 @@ import io.ktor.network.tls.tls
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.ClosedWriteChannelException
+import java.io.Closeable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -45,7 +46,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     private var sendChannel: ByteWriteChannel? = null
 
-    private var socket: Socket? = null
+    private var socket: Closeable? = null
 
     private var receiverJob: Job? = null
 

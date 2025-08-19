@@ -42,7 +42,7 @@ public class MqttClient internal constructor(
     private val engine: MqttEngine,
     private val packetStore: PacketStore,
     private val clock: Clock,
-) {
+) : AutoCloseable {
     public constructor(config: MqttClientConfig) :
         this(config, config.engine, InMemoryPacketStore(), Clock.System)
 
@@ -237,7 +237,7 @@ public class MqttClient internal constructor(
         engine.disconnect()
     }
 
-    public fun close() {
+    public override fun close() {
         engine.close()
         scope.cancel()
     }

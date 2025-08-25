@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -34,7 +35,7 @@ import kotlinx.io.EOFException
 
 internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngine {
 
-    private val _packetResults = MutableSharedFlow<Result<Packet>>()
+    private val _packetResults = MutableSharedFlow<Result<Packet>>(1)
     override val packetResults: SharedFlow<Result<Packet>>
         get() = _packetResults
 
@@ -44,9 +45,9 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     private val selectorManager = SelectorManager(config.dispatcher)
 
-    private val scope = CoroutineScope(config.dispatcher)
-
     private val writeMutex = Mutex()
+
+    private val scope = CoroutineScope(config.dispatcher + SupervisorJob())
 
     private var sendChannel: ByteWriteChannel? = null
 

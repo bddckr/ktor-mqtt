@@ -3,21 +3,31 @@ package de.kempmobil.ktor.mqtt
 import de.kempmobil.ktor.mqtt.packet.Connack
 import de.kempmobil.ktor.mqtt.packet.Connect
 import de.kempmobil.ktor.mqtt.packet.Packet
+import de.kempmobil.ktor.mqtt.packet.Puback
+import de.kempmobil.ktor.mqtt.packet.Pubcomp
+import de.kempmobil.ktor.mqtt.packet.Publish
+import de.kempmobil.ktor.mqtt.packet.Pubrec
+import de.kempmobil.ktor.mqtt.packet.Pubrel
 import de.kempmobil.ktor.mqtt.packet.Suback
 import de.kempmobil.ktor.mqtt.packet.Subscribe
 import de.kempmobil.ktor.mqtt.packet.Unsuback
 import de.kempmobil.ktor.mqtt.packet.Unsubscribe
 import de.kempmobil.ktor.mqtt.util.toTopic
+import dev.mokkery.answering.calls
 import dev.mokkery.answering.returns
 import dev.mokkery.every
 import dev.mokkery.everySuspend
+import dev.mokkery.matcher.any
 import dev.mokkery.matcher.ofType
 import dev.mokkery.mock
+import dev.mokkery.verify
 import dev.mokkery.verifySuspend
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -38,15 +48,21 @@ class MqttClientTest {
 
     private lateinit var packetResults: MutableSharedFlow<Result<Packet>>
 
+    private lateinit var session: SessionStore
+
     @BeforeTest
     fun setup() {
         connectionState = MutableStateFlow(false)
         packetResults = MutableSharedFlow()
 
-
         connection = mock {
             every { connected } returns connectionState
             every { packetResults } returns this@MqttClientTest.packetResults
+        }
+
+        session = mock {
+            every { clear() } returns Unit
+            every { unacknowledgedPackets() } returns emptyList()
         }
     }
 
@@ -261,13 +277,127 @@ class MqttClientTest {
         assertSame(unsuback, result.getOrNull())
     }
 
+    // ---- PUBLISH tests ----------------------------------------------------------------------------------------------
+
+    @Test
+    fun `publish a message when not connected returns error`() = runTest {
+        val client = createClient(connection)
+        val result = client.publish(PublishRequest("test/topic") { })
+
+        assertFalse { result.isSuccess }
+    }
+
+    @Test
+    fun `publish a QoS 0 message when sending fails returns error`() = runTest {
+        val client = createClient(connection)
+        connectionState.emit(true)
+        everySuspend { connection.send(ofType<Publish>()) } returns Result.failure(ConnectionException())
+
+        val result = client.publish(PublishRequest("test/topic") {
+            desiredQoS = QoS.AT_MOST_ONCE
+        })
+
+        assertFalse { result.isSuccess }
+        assertIs<ConnectionException>(result.exceptionOrNull())
+    }
+
+    @Test
+    fun `publish a QoS 1 or 2 message when sending fails returns error and saves packet in session store`() = runTest {
+        val client = createClient(connection)
+        connectionState.emit(true)
+        everySuspend { connection.send(ofType<Publish>()) } returns Result.failure(ConnectionException())
+        every { session.store(any()) } calls { (publish: Publish) ->
+            InFlightPublish(publish, Clock.System.now(), 1)
+        }
+
+        listOf(QoS.AT_LEAST_ONCE, QoS.EXACTLY_ONE).forEach { qoS ->
+            val result = client.publish(PublishRequest("test/topic") {
+                desiredQoS = qoS
+            })
+
+            assertFalse { result.isSuccess }
+            assertIs<ConnectionException>(result.exceptionOrNull())
+            verify { session.store(any()) }
+        }
+    }
+
+    @Test
+    fun `publish a message with QoS 0`() = runTest {
+        val client = createClient(connection)
+        connectionState.emit(true)
+        everySuspend { connection.send(ofType<Publish>()) } returns Result.success(Unit)
+
+        val result = client.publish(PublishRequest("test/topic") {
+            desiredQoS = QoS.AT_MOST_ONCE
+        })
+
+        assertTrue { result.isSuccess }
+        assertEquals("test/topic", result.getOrThrow().source.topic.name)
+    }
+
+    @Test
+    fun `publish a message with QoS 1`() = runTest {
+        var inFlightPacket: InFlightPublish? = null
+        val client = createClient(connection)
+        connectionState.emit(true)
+        packetResults.emit(Result.success(Puback(1u, Success)))
+        everySuspend { connection.send(ofType<Publish>()) } returns Result.success(Unit)
+        every { session.store(any()) } calls { (publish: Publish) ->
+            InFlightPublish(publish, Clock.System.now(), 1).also { inFlightPacket = it }
+        }
+        every { session.acknowledge(any()) } returns Unit
+
+        val result = client.publish(PublishRequest("test/topic") {
+            desiredQoS = QoS.AT_LEAST_ONCE
+        })
+
+        assertTrue { result.isSuccess }
+        assertEquals("test/topic", result.getOrThrow().source.topic.name)
+        assertNotNull(inFlightPacket)
+        verify { session.store(inFlightPacket.source) }
+        verify { session.acknowledge(inFlightPacket) }
+    }
+
+    @Test
+    fun `publish a message with QoS 2`() = runTest {
+        var inFlightPublish: InFlightPublish? = null
+        var inFlightPubrel: InFlightPubrel? = null
+        val client = createClient(connection)
+        connectionState.emit(true)
+        packetResults.emit(Result.success(Pubrec(1u, Success)))
+        packetResults.emit(Result.success(Pubcomp(1u, Success)))
+        everySuspend { connection.send(ofType<Publish>()) } returns Result.success(Unit)
+        everySuspend { connection.send(ofType<Pubrel>()) } returns Result.success(Unit)
+        every { session.store(any()) } calls { (publish: Publish) ->
+            InFlightPublish(publish, Clock.System.now(), 1).also { inFlightPublish = it }
+        }
+        every { session.replace(any()) } calls { (inFlightPublish: InFlightPublish) ->
+            InFlightPubrel(inFlightPublish, 1.toLong()).also { inFlightPubrel = it }
+        }
+        every { session.acknowledge(any()) } returns Unit
+
+        val result = client.publish(PublishRequest("test/topic") {
+            desiredQoS = QoS.EXACTLY_ONE
+        })
+
+        assertTrue { result.isSuccess }
+        assertEquals("test/topic", result.getOrThrow().source.topic.name)
+        assertNotNull(inFlightPublish)
+        assertNotNull(inFlightPubrel)
+        verify { session.store(inFlightPublish.source) }
+        verify { session.replace(inFlightPublish) }
+        verify { session.acknowledge(inFlightPubrel) }
+    }
+
+    // ---- Helper functions -------------------------------------------------------------------------------------------
+
     private fun createClient(connection: MqttEngine, id: String? = null): MqttClient {
         val config = buildConfig(DefaultEngineFactory("", 0)) {
             connection { }
             ackMessageTimeout = 100.milliseconds
             clientId = id ?: ""
         }
-        return MqttClient(config, connection, InMemoryPacketStore(), Clock.System)
+        return MqttClient(config, connection, session, Clock.System)
     }
 
     /**

@@ -37,6 +37,7 @@ public interface MqttClientConfig {
     public val authenticationMethod: AuthenticationMethod?
     public val authenticationData: AuthenticationData?
     public val userProperties: UserProperties
+    public val sessionStoreProvider: () -> SessionStore
 }
 
 /**
@@ -58,19 +59,22 @@ public fun <T : MqttEngineConfig> buildConfig(
  * @property dispatcher the coroutine dispatcher to use for background tasks
  * @property delayForKeepAlive a function that is called to delay the sending of a PINGREQ message, defaults to a function that delays until the next keep alive interval
  * @property pingResponseTimeout the time to wait for a PINGREQ message from the server, defaults to 0 seconds; non-positive values disable the waiting for a PINGRESP message altogether
- * @property ackMessageTimeout the time to wait for an acknowledgment message from the server, defaults to 7 seconds
+ * @property ackMessageTimeout the time to wait for an acknowledgment/handshake messages from the server, defaults to 7 seconds
  * @property clientId the ID of this client, defaults to an empty string
  * @property keepAliveSeconds the value of keep alive in the connect message of this client, defaults to 0
  * @property username the username for authenticating this client
  * @property password the password of the user
- * @property sessionExpiryInterval the value of the session expiry interval of the connect message of this client
+ * @property sessionExpiryInterval the value of the session expiry interval of the connect message of this client.
+ *           Note that this value is also used when disconnecting from the server
  * @property receiveMaximum limits the number of QoS 1 and QoS 2 publications that this client is willing to process concurrently
  * @property maximumPacketSize the maximum packet size this client is willing to accept
  * @property topicAliasMaximum indicates the highest value that the Client will accept as a Topic Alias sent by the server, default: 0
  * @property requestResponseInformation request the server to return Response Information in the CONNACK, default `false`
- * @property requestProblemInformation use this value to indicate whether the reason string or user properties are sent in the case of failures, default: `true`
+ * @property requestProblemInformation use this value to indicate whether the reason string or user properties are sent
+ *           in the case of failures, default: `true`
  * @property authenticationMethod currently not used
  * @property authenticationData currently not used
+ * @property sessionStoreProvider factory method for creating an instance of [SessionStore], defaults to create an [InMemorySessionStore]
  */
 @MqttDslMarker
 @Suppress("MemberVisibilityCanBePrivate")
@@ -107,6 +111,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
     public var requestProblemInformation: Boolean = true
     public var authenticationMethod: String? = null
     public var authenticationData: ByteString? = null
+    public var sessionStoreProvider: () -> SessionStore = { InMemorySessionStore() }
 
     public fun connection(init: T.() -> Unit) {
         engine = engineFactory.create(init)
@@ -152,7 +157,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
             keepAliveSeconds = keepAliveSeconds,
             username = username,
             password = password,
-            sessionExpiryInterval = sessionExpiryInterval?.let { SessionExpiryInterval(it.inWholeSeconds.toUInt()) },
+            sessionExpiryInterval = sessionExpiryInterval?.toSessionExpiryInterval(),
             receiveMaximum = receiveMaximum?.let { ReceiveMaximum(it) },
             maximumPacketSize = maximumPacketSize?.let { MaximumPacketSize(it) },
             topicAliasMaximum = TopicAliasMaximum(topicAliasMaximum),
@@ -161,6 +166,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
             authenticationMethod = authenticationMethod?.let { AuthenticationMethod(it) },
             authenticationData = authenticationData?.let { AuthenticationData(it) },
             userProperties = userPropertiesBuilder?.build() ?: UserProperties.EMPTY,
+            sessionStoreProvider = sessionStoreProvider
         )
     }
 }
@@ -187,4 +193,5 @@ private class MqttClientConfigImpl(
     override val authenticationMethod: AuthenticationMethod? = null,
     override val authenticationData: AuthenticationData? = null,
     override val userProperties: UserProperties,
+    override val sessionStoreProvider: () -> SessionStore,
 ) : MqttClientConfig

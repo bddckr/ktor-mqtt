@@ -1,6 +1,16 @@
 package de.kempmobil.ktor.mqtt.packet
 
-import de.kempmobil.ktor.mqtt.*
+import de.kempmobil.ktor.mqtt.GrantedQoS0
+import de.kempmobil.ktor.mqtt.GrantedQoS2
+import de.kempmobil.ktor.mqtt.ReasonCode
+import de.kempmobil.ktor.mqtt.ReasonString
+import de.kempmobil.ktor.mqtt.Success
+import de.kempmobil.ktor.mqtt.UserProperties
+import de.kempmobil.ktor.mqtt.asArray
+import de.kempmobil.ktor.mqtt.malformedWhen
+import de.kempmobil.ktor.mqtt.readProperties
+import de.kempmobil.ktor.mqtt.singleOrNull
+import de.kempmobil.ktor.mqtt.writeProperties
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.io.readUShort
@@ -17,13 +27,13 @@ public data class Suback(
         malformedWhen(reasons.isEmpty()) { "Reason codes must not be empty in SUBACK" }
         malformedWhen(reasons.contains(Success)) { "Reason code 'Success' is not allowed for SUBACK" }
     }
-}
 
-/**
- * Returns `true` when this SUBACK packet contains a reason code which not indicates a success.
- */
-public val Suback.hasFailure: Boolean
-    get() = reasons.any { it.code > GrantedQoS2.code }
+    /**
+     * Returns `true` when this SUBACK packet contains a reason code which not indicates a success.
+     */
+    public val hasFailure: Boolean
+        get() = reasons.any { it.code > GrantedQoS2.code }
+}
 
 internal fun Sink.write(suback: Suback) {
     with(suback) {

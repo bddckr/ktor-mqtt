@@ -39,9 +39,9 @@ kotlin {
             implementation(libs.androidx.activity.compose)
         }
         commonMain.dependencies {
-            implementation(project(":mqtt-core"))
-            implementation(project(":mqtt-client"))
-            implementation(project(":mqtt-client-ws"))
+            implementation(projects.mqttCore)
+            implementation(projects.mqttClient)
+            implementation(projects.mqttClientWs)
             implementation(libs.ktor.network.tls)
             implementation(libs.kermit)
             implementation(compose.runtime)

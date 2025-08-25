@@ -15,7 +15,10 @@ kotlin {
     explicitApi()
 
     compilerOptions {
-        optIn.add("kotlin.time.ExperimentalTime")
+        optIn.addAll(
+            "kotlin.contracts.ExperimentalContracts",
+            "kotlin.time.ExperimentalTime"
+        )
     }
 
     jvm()

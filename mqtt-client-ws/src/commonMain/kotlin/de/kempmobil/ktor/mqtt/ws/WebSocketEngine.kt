@@ -7,12 +7,19 @@ import de.kempmobil.ktor.mqtt.packet.Packet
 import de.kempmobil.ktor.mqtt.packet.readPacket
 import de.kempmobil.ktor.mqtt.packet.write
 import de.kempmobil.ktor.mqtt.util.Logger
-import io.ktor.client.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.websocket.*
-import io.ktor.http.*
-import io.ktor.utils.io.*
-import io.ktor.websocket.*
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.pluginOrNull
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.URLProtocol
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.writeFully
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readBytes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -87,10 +94,11 @@ internal class WebSocketEngine(private val config: WebSocketEngineConfig) : Mqtt
 
     override suspend fun disconnect() {
         wsSession?.let {
-            wsSession = null
             it.close()
+            wsSession = null
         }
         receiverJob?.cancel()
+        _connected.emit(false)
     }
 
     override fun close() {

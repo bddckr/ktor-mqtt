@@ -21,6 +21,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -40,11 +41,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 public class MqttClient internal constructor(
     private val config: MqttClientConfig,
     private val engine: MqttEngine,
-    private val packetStore: PacketStore,
+    private val session: SessionStore,
     private val clock: Clock,
 ) : AutoCloseable {
+
     public constructor(config: MqttClientConfig) :
-        this(config, config.engine, InMemoryPacketStore(), Clock.System)
+        this(config, config.engine, config.sessionStoreProvider(), Clock.System)
 
     private var keepAliveJob: Job? = null
     @Volatile
@@ -105,7 +107,11 @@ public class MqttClient internal constructor(
 
     private val scope = CoroutineScope(config.dispatcher)
 
-    private val receivedPackets = MutableSharedFlow<Packet>()
+    // A replay cache is crucial here to prevent a race condition where a response packet arrives
+    // before the corresponding `awaitResponseOf` call is able to subscribe to the flow. Without a
+    // replay cache, such a packet would be lost. A capacity of 16 is chosen to safely handle
+    // bursts of responses from concurrent requests.
+    private val receivedPackets = MutableSharedFlow<Packet>(replay = 16)
 
     private var packetIdentifier: UShort = 0u
     private val packetIdentifierMutex = Mutex()
@@ -113,7 +119,7 @@ public class MqttClient internal constructor(
     private val publishReceivedPackets = mutableMapOf<UShort, Pubrec>()
 
     private val isCleanStart: Boolean
-        get() = true // TODO
+        get() = session.unacknowledgedPackets().isNotEmpty()
 
     init {
         scope.launch {
@@ -138,8 +144,16 @@ public class MqttClient internal constructor(
             .mapCatching {
                 awaitResponseOf<Connack>(PacketType.CONNACK) {
                     engine.send(createConnect())
-                }.onSuccess {
-                    inspectConnack(it)
+                }.onSuccess { connack ->
+                    inspectConnack(connack)
+
+                    // From MQTT spec 3.1.2.11.2: "The Client can avoid implementing its own Session expiry and instead
+                    // rely on the Session Present flag returned from the Server to determine if the Session had expired."
+                    if (connack.isSessionPresent) {
+                        resumeSession()
+                    } else {
+                        session.clear()
+                    }
                 }.getOrElse {
                     throw it
                 }
@@ -188,52 +202,40 @@ public class MqttClient internal constructor(
         })
     }
 
-    public suspend fun publish(request: PublishRequest): Result<QoS> {
+    /**
+     * Sends the specified [PublishRequest] to the server.
+     *
+     * In case the server announced a [QoS] value lower than the one requested, the QoS of the published packet will be
+     * automatically downgraded. The actual QoS can be determined from either [maxQos] or from [PublishResponse.qoS]
+     *
+     * When this method successfully returns, all handshake packets required by the actual `QoS` will be exchanged
+     * between this client and the server. When the server does not respond within
+     * [ackMessageTimeout][de.kempmobil.ktor.mqtt.MqttClientConfigBuilder.ackMessageTimeout] the result will be a
+     * failure with a [HandshakeFailedException].
+     *
+     * All returned exceptions are of type [MqttException] resp. its subtypes.
+     */
+    public suspend fun publish(request: PublishRequest): Result<PublishResponse> {
         if (!engine.connected.value) {
             return Result.failure(ConnectionException("Cannot send PUBLISH packet while not connected"))
         }
 
         return createPublish(request).mapCatching { publish ->
             when (publish.qoS) {
-                QoS.AT_MOST_ONCE -> {
-                    engine.send(publish)
-                    QoS.AT_MOST_ONCE
-                }
-
-                QoS.AT_LEAST_ONCE -> {
-                    packetStore.store(publish)
-                    awaitResponseOf<Puback>({ it.isResponseFor<Puback>(publish) }) {
-                        engine.send(publish)
-                    }
-                        .getOrThrow()
-                        .throwIfError()
-                    packetStore.acknowledge(publish)
-                    QoS.AT_LEAST_ONCE
-                }
-
-                QoS.EXACTLY_ONE -> {
-                    packetStore.store(publish)
-                    awaitResponseOf<Pubrec>({ it.isResponseFor<Pubrec>(publish) }) {
-                        engine.send(publish)
-                    }
-                        .getOrThrow()
-                        .throwIfError()
-                    val pubrel = packetStore.replace(publish)
-                    awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(pubrel) }) {
-                        engine.send(pubrel)
-                    }
-                        .getOrThrow()
-                        .throwIfError()
-                    packetStore.acknowledge(pubrel)
-                    QoS.EXACTLY_ONE
-                }
+                QoS.AT_MOST_ONCE -> sendAtMostOnceMessage(publish)
+                QoS.AT_LEAST_ONCE -> sendAtLeastOnceMessage(session.store(publish))
+                QoS.EXACTLY_ONE -> sendExactlyOnceMessage(session.store(publish))
             }
         }
     }
 
-    public suspend fun disconnect(reasonCode: ReasonCode = NormalDisconnection, reason: String? = null) {
+    public suspend fun disconnect(
+        reasonCode: ReasonCode = NormalDisconnection,
+        reason: String? = null,
+        sessionExpiryInterval: SessionExpiryInterval? = config.sessionExpiryInterval
+    ) {
         keepAliveJob?.cancel()
-        engine.send(createDisconnect(reasonCode, reason))
+        engine.send(createDisconnect(reasonCode, reason, sessionExpiryInterval))
         engine.disconnect()
     }
 
@@ -316,10 +318,68 @@ public class MqttClient internal constructor(
         }
     }
 
-    private fun createDisconnect(reasonCode: ReasonCode, reason: String?): Disconnect {
+    private suspend fun sendAtMostOnceMessage(publish: Publish): PublishResponse {
+        engine.send(publish).onFailure { throw it }
+        return AtMostOncePublishResponse(publish)
+    }
+
+    private suspend fun sendAtLeastOnceMessage(inFlight: InFlightPublish): PublishResponse {
+        val publish = inFlight.source
+
+        val puback = awaitResponseOf<Puback>({ it.isResponseFor<Puback>(publish) }) {
+            engine.send(publish)
+        }.getOrElse {
+            it.throwHandshakeExceptionForTimeout("PUBACK", publish)
+        }
+
+        session.acknowledge(inFlight)
+        return AtLeastOncePublishResponse(publish, puback)
+    }
+
+    private suspend fun sendExactlyOnceMessage(inFlight: InFlightPublish): PublishResponse {
+        val publish = inFlight.source
+
+        awaitResponseOf<Pubrec>({ it.isResponseFor<Pubrec>(publish) }) {
+            engine.send(publish)
+        }.getOrElse {
+            it.throwHandshakeExceptionForTimeout("PUBREC", publish)
+        }
+
+        val pubrel = session.replace(inFlight)
+        val pubcomp = awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(pubrel.source) }) {
+            engine.send(pubrel.source)
+        }.getOrElse {
+            it.throwHandshakeExceptionForTimeout("PUBCOMP", publish)
+        }
+
+        session.acknowledge(pubrel)
+        return ExactlyOnePublishResponse(publish, pubcomp)
+    }
+
+    private suspend fun sendPubrel(pubrel: Pubrel): Pubcomp? {
+        return awaitResponseOf<Pubcomp>({ it.isResponseFor<Pubcomp>(pubrel) }) {
+            engine.send(pubrel)
+        }.getOrElse {
+            null
+        }
+    }
+
+    private fun Throwable.throwHandshakeExceptionForTimeout(expected: String, publish: Publish): Nothing {
+        if (this is TimeoutException) {
+            throw HandshakeFailedException("Did not receive $expected for $publish", publish)
+        } else {
+            throw this
+        }
+    }
+
+    private fun createDisconnect(
+        reasonCode: ReasonCode,
+        reason: String?,
+        sessionExpiryInterval: SessionExpiryInterval?
+    ): Disconnect {
         return Disconnect(
             reason = reasonCode,
-            sessionExpiryInterval = config.sessionExpiryInterval,
+            sessionExpiryInterval = sessionExpiryInterval,
             reasonString = reason.toReasonString()
         )
     }
@@ -388,6 +448,35 @@ public class MqttClient internal constructor(
         return connack
     }
 
+    private suspend fun resumeSession() {
+        session.unacknowledgedPackets().forEach { packet ->
+            try {
+                when (packet) {
+                    is InFlightPublish -> {
+                        when (packet.source.qoS) {
+                            QoS.AT_MOST_ONCE -> Logger.e { "Unexpected packet in session store: $packet" }
+                            QoS.AT_LEAST_ONCE -> sendAtLeastOnceMessage(packet)
+                            QoS.EXACTLY_ONE -> sendExactlyOnceMessage(packet)
+                        }
+                    }
+
+                    is InFlightPubrel -> {
+                        sendPubrel(packet.source)?.also {
+                            session.acknowledge(packet)
+                        }
+                    }
+                }
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: HandshakeFailedException) {
+                Logger.w(ex) { "Error resuming session, will try next time: $packet" }
+            } catch (ex: Exception) {
+                Logger.e(ex) { "Error resuming session, re-trying next time" }
+                return
+            }
+        }
+    }
+
     private suspend fun handlePacketResult(result: Result<Packet>) {
         result.onSuccess { packet ->
             handlePacket(packet)
@@ -430,7 +519,10 @@ public class MqttClient internal constructor(
                                 engine.send(it)
                             }
                         } else {
-                            _publishedPackets.emit(packet)
+                            if (!session.hasIncomingPacketId(packet)) {
+                                session.rememberIncomingPacketId(packet)
+                                _publishedPackets.emit(packet)
+                            }
                             val pubrec = Pubrec.from(packet)
                             publishReceivedPackets[id] = pubrec
                             engine.send(pubrec)
@@ -442,6 +534,7 @@ public class MqttClient internal constructor(
             is Pubrel -> {
                 engine.send(Pubcomp.from(packet))
                 publishReceivedPackets.remove(packet.packetIdentifier)
+                session.releaseIncomingPacketId(packet)
             }
 
             else -> {
@@ -465,7 +558,10 @@ public class MqttClient internal constructor(
                 Result.failure(TimeoutException("Didn't receive requested packet within ${config.ackMessageTimeout}"))
             }
         }
-        request().onFailure { return Result.failure(it) }
+        request().onFailure {
+            waitForResponse.cancel()
+            return Result.failure(it)
+        }
 
         return waitForResponse.await()
     }
@@ -481,6 +577,8 @@ public class MqttClient internal constructor(
                 packetIdentifier = 1u
             }
             packetIdentifier
+        }.also {
+            Logger.v { "Next packet identifier: $it" }
         }
     }
 }

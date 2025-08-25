@@ -1,6 +1,14 @@
 package de.kempmobil.ktor.mqtt.packet
 
-import de.kempmobil.ktor.mqtt.*
+import de.kempmobil.ktor.mqtt.ReasonCode
+import de.kempmobil.ktor.mqtt.ReasonString
+import de.kempmobil.ktor.mqtt.Success
+import de.kempmobil.ktor.mqtt.UserProperties
+import de.kempmobil.ktor.mqtt.asArray
+import de.kempmobil.ktor.mqtt.readProperties
+import de.kempmobil.ktor.mqtt.singleOrNull
+import de.kempmobil.ktor.mqtt.wellFormedWhen
+import de.kempmobil.ktor.mqtt.writeProperties
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.io.readUShort
@@ -9,7 +17,7 @@ import kotlinx.io.writeUShort
 /**
  * Base class for PUBACK, PUBREC, PUBREL and PUBCOMP.
  */
-public sealed class PublishResponse(
+public sealed class PublishResponsePacket(
     type: PacketType,
     public final override val packetIdentifier: UShort,
     public val reason: ReasonCode,
@@ -27,7 +35,7 @@ public sealed class PublishResponse(
         if (this === other) return true
         if (other == null || this::class != other::class) return false
 
-        other as PublishResponse
+        other as PublishResponsePacket
 
         if (packetIdentifier != other.packetIdentifier) return false
         if (reason != other.reason) return false
@@ -48,12 +56,6 @@ public sealed class PublishResponse(
     override fun toString(): String {
         return "${this::class.simpleName}(packetIdentifier=$packetIdentifier, reason=$reason, reasonString=$reasonString, userProperties=$userProperties)"
     }
-
-    public fun throwIfError() {
-        if (reason != Success) {
-            throw PublishResponseException(this)
-        }
-    }
 }
 
 public class Puback(
@@ -61,7 +63,7 @@ public class Puback(
     reason: ReasonCode,
     reasonString: ReasonString? = null,
     userProperties: UserProperties = UserProperties.EMPTY
-) : PublishResponse(PacketType.PUBACK, packetIdentifier, reason, reasonString, userProperties) {
+) : PublishResponsePacket(PacketType.PUBACK, packetIdentifier, reason, reasonString, userProperties) {
 
     public companion object {
 
@@ -85,7 +87,7 @@ public class Pubrec(
     reason: ReasonCode,
     reasonString: ReasonString? = null,
     userProperties: UserProperties = UserProperties.EMPTY
-) : PublishResponse(PacketType.PUBREC, packetIdentifier, reason, reasonString, userProperties) {
+) : PublishResponsePacket(PacketType.PUBREC, packetIdentifier, reason, reasonString, userProperties) {
 
     public companion object {
 
@@ -108,7 +110,7 @@ public class Pubrel(
     reason: ReasonCode,
     reasonString: ReasonString? = null,
     userProperties: UserProperties = UserProperties.EMPTY
-) : PublishResponse(PacketType.PUBREL, packetIdentifier, reason, reasonString, userProperties) {
+) : PublishResponsePacket(PacketType.PUBREL, packetIdentifier, reason, reasonString, userProperties) {
 
     // Note: this is the only response packet with a header flag!
     override val headerFlags: Int = 2
@@ -134,7 +136,7 @@ public class Pubcomp(
     reason: ReasonCode,
     reasonString: ReasonString? = null,
     userProperties: UserProperties = UserProperties.EMPTY
-) : PublishResponse(PacketType.PUBCOMP, packetIdentifier, reason, reasonString, userProperties) {
+) : PublishResponsePacket(PacketType.PUBCOMP, packetIdentifier, reason, reasonString, userProperties) {
 
     public companion object {
 
@@ -150,7 +152,11 @@ public class Pubcomp(
             )
         }
 
-        public fun from(publish: PublishResponse, reason: ReasonCode = Success, reasonString: String? = null): Pubcomp {
+        public fun from(
+            publish: PublishResponsePacket,
+            reason: ReasonCode = Success,
+            reasonString: String? = null
+        ): Pubcomp {
             val packetIdentifier = publish.packetIdentifier
 
             return Pubcomp(
@@ -163,7 +169,7 @@ public class Pubcomp(
     }
 }
 
-internal interface PublishResponseFactory<T : PublishResponse> {
+internal interface PublishResponseFactory<T : PublishResponsePacket> {
 
     operator fun invoke(
         packetIdentifier: UShort,
@@ -209,7 +215,7 @@ internal val PubcompFactory = object : PublishResponseFactory<Pubcomp> {
     ) = Pubcomp(packetIdentifier, reason, reasonString, userProperties)
 }
 
-internal fun Sink.write(publishResponse: PublishResponse) {
+internal fun Sink.write(publishResponse: PublishResponsePacket) {
     with(publishResponse) {
         writeUShort(packetIdentifier)
         if (reason != Success || reasonString != null || userProperties.isNotEmpty()) {
@@ -222,7 +228,7 @@ internal fun Sink.write(publishResponse: PublishResponse) {
     }
 }
 
-internal fun <T : PublishResponse> Source.readPublishResponse(createResponse: PublishResponseFactory<T>): T {
+internal fun <T : PublishResponsePacket> Source.readPublishResponse(createResponse: PublishResponseFactory<T>): T {
     val packetIdentifier = readUShort()
 
     return if (!exhausted()) {

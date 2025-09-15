@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "1.0.0"
 
-agp = "8.13.2"
+agp = "9.1.0"
 kotlin = "2.3.10"
 ktor = "3.4.1"
 kotlinx-coroutines = "1.10.2"

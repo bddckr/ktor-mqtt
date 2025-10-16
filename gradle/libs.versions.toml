@@ -3,18 +3,18 @@ ktormqtt = "0.7.0"
 
 agp = "8.13.0"
 kotlin = "2.2.20"
-ktor = "3.3.0"
+ktor = "3.3.1"
 kotlinx-coroutines = "1.10.2"
 kotlinx-io = "0.8.0"
-junit = "5.13.4"
-testcontainers = "1.21.3"
+junit = "6.0.0"
+testcontainers = "2.0.0"
 slf4j = "2.0.17"
 kermit = "2.0.8"
-mockery = "2.10.0"
-versions = "0.52.0"
+mockery = "2.10.1"
+versions = "0.53.0"
 kover = "0.9.2"
 vanniktech = "0.34.0"
-dokka = "2.0.0"
+dokka = "2.1.0"
 
 # Multiplatform app library versions
 android-compileSdk = "36"
@@ -22,10 +22,10 @@ android-minSdk = "24"
 #noinspection OldTargetApi
 android-targetSdk = "35"
 androidx-activity = "1.11.0"
-androidx-lifecycle = "2.9.4"
+androidx-lifecycle = "2.9.5"
 androidx-material = "1.7.3"
-composeHotReload = "1.0.0-beta07"
-composeMultiplatform = "1.9.0"
+composeHotReload = "1.0.0-rc02"
+composeMultiplatform = "1.9.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -49,7 +49,7 @@ kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 junit-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
-testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 

@@ -91,6 +91,13 @@ public class MqttClient internal constructor(
     private var _subscriptionIdentifierAvailable = true
 
     /**
+     * The value of 'Receive Maximum' from the CONNACK message of the server.
+     */
+    public val receiveMaximum: UShort
+        get() = _receiveMaximum
+    private var _receiveMaximum = UShort.MAX_VALUE
+
+    /**
      * Provides the connection state of this MQTT client. When the state is [Connected] this implies that an IP
      * connectivity has been established AND that the server responded with a success CONNACK message.
      */
@@ -434,6 +441,7 @@ public class MqttClient internal constructor(
             }
 
             _subscriptionIdentifierAvailable = connack.subscriptionIdentifierAvailable.isAvailable()
+            _receiveMaximum = connack.receiveMaximum?.value ?: UShort.MAX_VALUE
 
             Logger.i {
                 "Received server parameters: " +

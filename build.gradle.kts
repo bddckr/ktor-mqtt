@@ -19,7 +19,7 @@ dependencies {
     kover(projects.mqttCore)
     kover(projects.mqttClient)
     kover(projects.mqttClientWs)
-    kover(projects.mqttClientTest)
+    //kover(projects.mqttClientTest)
 }
 
 group = "de.kempmobil.ktor.mqtt"

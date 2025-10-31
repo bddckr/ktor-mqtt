@@ -1,6 +1,10 @@
+@file:OptIn(ExperimentalWasmDsl::class)
+
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig
 import java.net.URI
 
 plugins {
@@ -41,6 +45,18 @@ kotlin {
             }
         }
     }
+    wasmJs {
+        binaries.executable()
+        browser() {
+            commonWebpackConfig {
+                devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
+                    static = (static ?: mutableListOf()).apply {
+                        add(project.rootDir.path)
+                    }
+                }
+            }
+        }
+    }
 
     sourceSets {
         commonMain {
@@ -62,6 +78,11 @@ kotlin {
                 implementation(libs.ktor.server.websockets)
                 implementation(libs.slf4j.api)
                 implementation(libs.slf4j.simple)
+            }
+        }
+        wasmJsMain {
+            dependencies {
+                implementation(libs.kotlinx.browser)
             }
         }
     }
@@ -86,8 +107,13 @@ dokka {
     }
 }
 
+// Do not delete nor move to the root script, otherwise iOS artifact will miss these values
+group = "de.kempmobil.ktor.mqtt"
+version = libs.versions.ktormqtt.get()
+
 mavenPublishing {
-    coordinates("de.kempmobil.ktor.mqtt", "mqtt-client-ws", libs.versions.ktormqtt.get())
+    // It's not sufficient to call coordinates() here, group and version must also be defined as above
+    coordinates(group.toString(), "mqtt-client-ws", version.toString())
     configure(
         KotlinMultiplatform(
             javadocJar = JavadocJar.Dokka("dokkaGenerate"),

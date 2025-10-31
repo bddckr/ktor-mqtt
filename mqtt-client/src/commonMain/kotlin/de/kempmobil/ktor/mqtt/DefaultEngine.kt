@@ -133,7 +133,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
 
     private suspend fun ByteReadChannel.incomingMessageLoop() {
         try {
-            while (receiverJob?.isActive == true) {
+            while (!isClosedForRead) {
                 try {
                     _packetResults.emit(Result.success(readPacket()))
                 } catch (ex: CancellationException) {

@@ -19,7 +19,7 @@ dokka = "2.1.0"
 
 # Multiplatform app library versions
 android-compileSdk = "36"
-android-minSdk = "24"
+android-minSdk = "21"
 #noinspection OldTargetApi
 android-targetSdk = "35"
 androidx-activity = "1.11.0"

@@ -74,7 +74,7 @@ android {
     namespace = "de.kempmobil.ktor.mqtt.core"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
-        minSdk = 21
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }
 

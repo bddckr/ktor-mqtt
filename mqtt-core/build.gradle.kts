@@ -46,8 +46,10 @@ kotlin {
             }
         }
     }
-    wasmJs {
-        browser() // Target the browser environment
+    if (System.getenv("INCLUDE_WASM")?.toBoolean() == true) {
+        wasmJs {
+            browser() // Target the browser environment
+        }
     }
 
     sourceSets {

@@ -45,13 +45,13 @@ kotlin {
             }
         }
     }
-    wasmJs {
-        binaries.executable()
-        browser() {
-            commonWebpackConfig {
-                devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
-                    static = (static ?: mutableListOf()).apply {
-                        add(project.rootDir.path)
+    if (System.getenv("INCLUDE_WASM")?.toBoolean() == true) {
+        wasmJs {
+            binaries.executable()
+            browser() {
+                commonWebpackConfig {
+                    devServer = (devServer ?: KotlinWebpackConfig.DevServer()).apply {
+                        static(project.rootDir.path)
                     }
                 }
             }
@@ -80,9 +80,11 @@ kotlin {
                 implementation(libs.slf4j.simple)
             }
         }
-        wasmJsMain {
-            dependencies {
-                implementation(libs.kotlinx.browser)
+        if (System.getenv("INCLUDE_WASM")?.toBoolean() == true) {
+            wasmJsMain {
+                dependencies {
+                    implementation(libs.kotlinx.browser)
+                }
             }
         }
     }

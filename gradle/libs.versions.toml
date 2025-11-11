@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "0.8.0"
 
-agp = "8.13.0"
+agp = "8.13.1"
 kotlin = "2.2.21"
 ktor = "3.3.2"
 kotlinx-coroutines = "1.10.2"
@@ -23,10 +23,10 @@ android-minSdk = "21"
 #noinspection OldTargetApi
 android-targetSdk = "35"
 androidx-activity = "1.11.0"
-androidx-lifecycle = "2.9.5"
+androidx-lifecycle = "2.9.6"
 androidx-material = "1.7.3"
-composeHotReload = "1.0.0-rc02"
-composeMultiplatform = "1.9.2"
+composeHotReload = "1.0.0-rc03"
+composeMultiplatform = "1.9.3"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

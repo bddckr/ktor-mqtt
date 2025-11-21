@@ -17,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 expect fun createClient(
@@ -26,7 +27,7 @@ expect fun createClient(
 
 class IntegrationTest {
 
-    private val TIMEOUT = 15.seconds
+    private val TIMEOUT = 60.seconds
 
     @Test
     fun `reconnect after disconnect returns proper connection states`() = runClientTest("reconnect") { client ->
@@ -115,8 +116,8 @@ class IntegrationTest {
         receiver.assertConnected()
 
         // TODO: once chapter 4.9 "Flow Control" is implemented, we can use any value instead of the receive maximum.
-        //   This is only required, because we run each sender in its own scope, if we'd run the sender in a single
-        //   scope, all messages are fully acknowledged before sending a new message and hence we can send any number
+        //   This is only required, because we run each sender in its own coroutine scope, if we'd run the sender fully
+        //   sequential, then all messages are acknowledged before sending a new message and hence we can send any number
         //   of messages!
         val messages = receiver.receiveMaximum.toInt().coerceAtMost(100)
 
@@ -188,9 +189,13 @@ class IntegrationTest {
 
     private fun runClientTest(
         clientId1: String,
-        configurator1: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = { },
+        configurator1: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = {
+            ackMessageTimeout = 1.minutes  // Default timeout is too short for slow GitHub CI machines
+        },
         clientId2: String,
-        configurator2: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = { },
+        configurator2: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = {
+            ackMessageTimeout = 1.minutes  // Default timeout is too short for slow GitHub CI machines
+        },
         timeout: Duration = TIMEOUT,
         test: suspend TestScope.(client1: MqttClient, client2: MqttClient) -> Unit
     ) {

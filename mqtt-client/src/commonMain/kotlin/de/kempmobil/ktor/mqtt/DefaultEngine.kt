@@ -15,6 +15,7 @@ import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.ClosedWriteChannelException
 import java.io.Closeable
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -25,25 +26,33 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.EOFException
 
-internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngine {
+/**
+ * @property config the engine config
+ * @param socketHandler use a [SocketHandler] other than the default one, mainly used for testing
+ * @param replay the size of the replay cache for [packetResults], mainly used for testing
+ */
+internal class DefaultEngine(
+    private val config: DefaultEngineConfig,
+    socketHandler: SocketHandler? = null,
+    replay: Int = 1
+) :
+    MqttEngine {
 
-    private val _packetResults = MutableSharedFlow<Result<Packet>>(1)
-    override val packetResults: SharedFlow<Result<Packet>>
-        get() = _packetResults
+    private val _packetResults = MutableSharedFlow<Result<Packet>>(replay = replay)
+    override val packetResults = _packetResults.asSharedFlow()
 
     private val _connected = MutableStateFlow(false)
-    override val connected: StateFlow<Boolean>
-        get() = _connected
+    override val connected = _connected.asStateFlow()
 
-    private val selectorManager = SelectorManager(config.dispatcher)
+    private val socketHandler = socketHandler ?: SocketHandlerImpl(config.dispatcher)
 
     private val writeMutex = Mutex()
 
@@ -58,7 +67,9 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
     override suspend fun start(): Result<Unit> {
         return try {
             socket = scope.async {
-                val socket = openSocket()
+                val socket = withTimeout(config.connectionTimeout) {
+                    socketHandler.openSocket(config)
+                }
                 _connected.emit(true)
                 socket
             }.await().also { socket ->
@@ -92,7 +103,7 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
     }
 
     override fun close() {
-        selectorManager.close()
+        socketHandler.close()
         scope.cancel()
     }
 
@@ -101,35 +112,6 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
     }
 
     // --- Private methods ---------------------------------------------------------------------------------------------
-
-    private suspend fun openSocket(): Socket {
-        return with(config) {
-            val tlsConfig = tlsConfigBuilder?.build()
-            if (tlsConfig != null) {
-                // We must provide our own exception handler for the TLS connection, otherwise errors (which might happen
-                // due to an already closed connection) will get propagated to the parent's coroutine, which is not what
-                // we want.
-                val handler = CoroutineExceptionHandler { _, exception ->
-                    if (connected.value) {
-                        Logger.e(throwable = exception) { "TLS error while connected to $host:$port, disconnecting..." }
-                        scope.launch {
-                            disconnect()
-                        }
-                    }
-                    // When not connected, ignore this exception, as it is a result of being disconnected
-                }
-                val tlsContext = CoroutineName("TLS Handler") + config.dispatcher + handler
-
-                withTimeout(connectionTimeout.inWholeMilliseconds) {
-                    aSocket(selectorManager).tcp().connect(host, port, tcpOptions).tls(tlsContext, tlsConfig)
-                }
-            } else {
-                withTimeout(connectionTimeout.inWholeMilliseconds) {
-                    aSocket(selectorManager).tcp().connect(host, port, tcpOptions)
-                }
-            }
-        }
-    }
 
     private suspend fun ByteReadChannel.incomingMessageLoop() {
         try {
@@ -193,4 +175,48 @@ internal class DefaultEngine(private val config: DefaultEngineConfig) : MqttEngi
         socket = null
         sendChannel = null
     }
+
+    private inner class SocketHandlerImpl(dispatcher: CoroutineDispatcher) : SocketHandler {
+
+        private val selectorManager = SelectorManager(dispatcher)
+
+        override suspend fun openSocket(config: DefaultEngineConfig): Socket {
+            return with(config) {
+                val tlsConfig = tlsConfigBuilder?.build()
+                if (tlsConfig != null) {
+                    // We must provide our own exception handler for the TLS connection, otherwise errors (which might happen
+                    // due to an already closed connection) will get propagated to the parent's coroutine, which is not what
+                    // we want.
+                    val handler = CoroutineExceptionHandler { _, exception ->
+                        if (connected.value) {
+                            Logger.e(throwable = exception) { "TLS error while connected to $host:$port, disconnecting..." }
+                            scope.launch {
+                                disconnect()
+                            }
+                        }
+                        // When not connected, ignore this exception, as it is a result of being disconnected
+                    }
+                    val tlsContext = CoroutineName("TLS Handler") + config.dispatcher + handler
+
+                    aSocket(selectorManager).tcp().connect(host, port, tcpOptions).tls(tlsContext, tlsConfig)
+                } else {
+                    aSocket(selectorManager).tcp().connect(host, port, tcpOptions)
+                }
+            }
+        }
+
+        override fun close() {
+            selectorManager.close()
+        }
+    }
+}
+
+/**
+ * Mainly used for mocking socket connection failures.
+ */
+internal interface SocketHandler {
+
+    suspend fun openSocket(config: DefaultEngineConfig): Socket
+
+    fun close()
 }

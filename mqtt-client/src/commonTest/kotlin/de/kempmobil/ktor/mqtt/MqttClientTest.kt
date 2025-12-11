@@ -40,11 +40,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 
-/**
- * This test is abstract, as mocking does not work reliable in WASM yet. Inheriting test classes are available in
- * jvmTest and nativeTest.
- */
-abstract class MqttClientTest {
+class MqttClientTest {
 
     private lateinit var connection: MqttEngine
 

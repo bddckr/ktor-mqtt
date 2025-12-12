@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "0.8.1"
 
-agp = "8.13.1"
+agp = "8.13.2"
 kotlin = "2.2.21"
 ktor = "3.3.3"
 kotlinx-coroutines = "1.10.2"
@@ -22,7 +22,7 @@ android-compileSdk = "36"
 android-minSdk = "21"
 #noinspection OldTargetApi
 android-targetSdk = "35"
-androidx-activity = "1.12.0"
+androidx-activity = "1.12.1"
 androidx-lifecycle = "2.9.6"
 androidx-material = "1.7.3"
 composeHotReload = "1.0.0"

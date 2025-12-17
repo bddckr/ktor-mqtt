@@ -15,11 +15,14 @@ kotlin {
     }
 
     jvm()
-    androidTarget {
-        compilations {
-            compilerOptions {
-                jvmTarget.set(JvmTarget.JVM_1_8)
-            }
+
+    android {
+        namespace = "de.kempmobil.ktor.mqtt.client.test"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_1_8)
         }
     }
 
@@ -63,13 +66,5 @@ kotlin {
                 implementation(libs.slf4j.simple)
             }
         }
-    }
-}
-
-android {
-    namespace = "de.kempmobil.ktor.mqtt.client.test"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-    defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }

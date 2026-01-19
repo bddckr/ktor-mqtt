@@ -26,7 +26,7 @@ kotlin {
         }
     }
 
-    if (System.getenv("INCLUDE_IOS")?.toBoolean() == true) {
+    if (System.getenv("INCLUDE_APPLE")?.toBoolean() == true) {
         listOf(
             iosX64(),
             iosArm64(),

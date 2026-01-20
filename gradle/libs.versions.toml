@@ -14,7 +14,7 @@ testcontainers = "2.0.3"
 versions = "0.53.0"
 kover = "0.9.7"
 vanniktech = "0.36.0"
-dokka = "2.1.0"
+dokka = "2.2.0-Beta"
 
 # Multiplatform app library versions
 android-compileSdk = "36"

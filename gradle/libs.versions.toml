@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "1.0.0"
 
-agp = "8.13.2"
+agp = "9.1.0"
 kotlin = "2.3.10"
 ktor = "3.4.1"
 kotlinx-coroutines = "1.10.2"
@@ -14,7 +14,7 @@ testcontainers = "2.0.3"
 versions = "0.53.0"
 kover = "0.9.7"
 vanniktech = "0.36.0"
-dokka = "2.1.0"
+dokka = "2.2.0-Beta"
 
 # Multiplatform app library versions
 android-compileSdk = "36"

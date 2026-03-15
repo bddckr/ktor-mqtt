@@ -141,8 +141,8 @@ Add the library to dependencies:
 
 ```kotlin
 dependencies {
-  implementation("de.kempmobil.ktor.mqtt:mqtt-core:0.8.2")
-  implementation("de.kempmobil.ktor.mqtt:mqtt-client:0.8.2")
+  implementation("de.kempmobil.ktor.mqtt:mqtt-core:1.0.0")
+  implementation("de.kempmobil.ktor.mqtt:mqtt-client:1.0.0")
 }
 ```
 
@@ -153,8 +153,8 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-              implementation("de.kempmobil.ktor.mqtt:mqtt-core:0.8.2")
-              implementation("de.kempmobil.ktor.mqtt:mqtt-client:0.8.2")
+              implementation("de.kempmobil.ktor.mqtt:mqtt-core:1.0.0")
+              implementation("de.kempmobil.ktor.mqtt:mqtt-client:1.0.0")
             }
         }
     }
@@ -175,8 +175,8 @@ and **at least one Ktor Http client library**, for example `CIO`:
 
 ```kotlin
 dependencies {
-  implementation("de.kempmobil.ktor.mqtt:mqtt-client-ws:0.8.2")
-  implementation("io.ktor:ktor-client-cio:3.3.3")
+  implementation("de.kempmobil.ktor.mqtt:mqtt-client-ws:1.0.0")
+  implementation("io.ktor:ktor-client-cio:3.4.0")
 }
 ```
 
@@ -212,28 +212,17 @@ val client = MqttClient("https://test.mosquitto.org:8081") {
 }
 ```
 
-See the [Ktor documentation](https://ktor.io/docs/client-create-and-configure.html) on how to configure a http client.
+See the [Ktor documentation](https://ktor.io/docs/client-create-and-configure.html) on how to configure an http client.
 
 ## Wasm Support
 
 Wasm Support is currently experimental. Already now it shows the power of Wasm as you get a full features MQTT 5
 client with merely 650kB of compiled Wasm code.
 
-You can launch a test page with:
+You can view a simple test page [here](https://ukemp.github.io/ktor-mqtt/) or you can launch it via:
 
 ```bash
 ./gradlew wasmJsBrowserProductionRun
 ```
 
 Sources are available at [main.kt](mqtt-client-ws/src/wasmJsMain/kotlin/main.kt).
-
-Do not expect Wasm to support plain socket connections in the future. Due to its nature, it will always require a
-(secure) websocket connection to your MQTT broker.
-
-## Missing features
-
-What's currently missing:
-
-- Handling of `Authentication Method` and `Authentication Data` fields in the `CONNACK` message
-- Handling of the `Receive Maximum`, `Retain Available`, `Maximum Packet Size`, `Wildcard Subscription Available`
-  `Shared Subscription Available` flags in the `CONNACK` message

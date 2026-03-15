@@ -48,6 +48,7 @@ class WebSocketEngineTest {
 
     @AfterTest
     fun cleanup() {
+        port++
         cleanupJob?.run {
             cleanupJob = null
             runBlocking {
@@ -74,8 +75,8 @@ class WebSocketEngineTest {
         MqttEngine().use { engine ->
             val result = engine.start()
 
-            assertTrue(result.isSuccess)
-            assertTrue(engine.connected.value)
+            assertTrue(result.isSuccess, "Starting engine should not return a failure")
+            assertTrue(engine.connected.value, "Engine should be connected after start")
         }
     }
 
@@ -85,8 +86,8 @@ class WebSocketEngineTest {
         MqttEngine().use { engine ->
             val result = engine.start()
 
-            assertTrue(result.isSuccess)
-            assertTrue(engine.connected.value)
+            assertTrue(result.isSuccess, "Starting engine should not return a failure")
+            assertTrue(engine.connected.value, "Engine should be connected after start")
 
             cleanupJob?.start()
             cleanupJob?.join()
@@ -105,7 +106,7 @@ class WebSocketEngineTest {
             assertFalse(engine.connected.value, "Engine should not be connected before start")
 
             val result = engine.start()
-            assertTrue(result.isSuccess)
+            assertTrue(result.isSuccess, "Starting engine should not return a failure")
             assertTrue(engine.connected.value, "Engine should be connected after start")
 
             engine.disconnect()
@@ -179,7 +180,6 @@ class WebSocketEngineTest {
 
     // ---- Helper functions -------------------------------------------------------------------------------------------
 
-    @Suppress("TestFunctionName")
     private fun MqttEngine(): MqttEngine {
         Logger.configureLogging {
             minSeverity = Severity.Verbose
@@ -206,6 +206,10 @@ class WebSocketEngineTest {
                     maxFrameSize = frameSize
                     if (session != null) {
                         session()
+                    } else {
+                        // Keep the websocket open, to let tests to run to completion
+                        for (frame in incoming) {
+                        }
                     }
                 }
             }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
 
 public class MqttClient internal constructor(
@@ -97,6 +98,50 @@ public class MqttClient internal constructor(
     public val receiveMaximum: UShort
         get() = _receiveMaximum
     private var _receiveMaximum = UShort.MAX_VALUE
+        set(value) {
+            field = value
+            sendQuota = Semaphore(value.toInt())
+        }
+
+    /**
+     * The value of 'Retain Available' from the CONNACK message of the server.
+     */
+    public val isRetainAvailable: Boolean
+        get() = _isRetainAvailable
+    private var _isRetainAvailable = true
+
+    /**
+     * The value of 'Wildcard Subscription Available' from the CONNACK message of the server.
+     *
+     * Note that this value is only reported here, the [subscribe] method merely logs a warning message if a wildcard
+     * subscription is requested, when the server does not support it. The server should send a DISCONNECT with reason
+     * [WildcardSubscriptionsNotSupported] when a wild card subscription was requested for a server who is not
+     * supporting it.
+     */
+    public val isWildcardSubscriptionAvailable: Boolean
+        get() = _isWildcardSubscriptionAvailable
+    private var _isWildcardSubscriptionAvailable = true
+
+    /**
+     * The value of 'Shared Subscription Available' from the CONNACK message of the server.
+     *
+     * Note that this value is only reported here, the [subscribe] method merely logs a warning message if a shared
+     * subscription is requested, when the server does not support it. The server should send a DISCONNECT with reason
+     * [SharedSubscriptionsNotSupported] when a wild card subscription was requested for a server who is not supporting
+     * it.
+     */
+    public val isSharedSubscriptionAvailable: Boolean
+        get() = _isSharedSubscriptionAvailable
+    private var _isSharedSubscriptionAvailable = true
+
+    /**
+     * The value of 'Maximum Packet Size' from the CONNACK message of the server.
+     *
+     * Note that this value is only reported here, packets are not checked for their size before being sent.
+     */
+    public val maxPacketSize: UInt
+        get() = _maxPacketSize
+    private var _maxPacketSize = UInt.MAX_VALUE
 
     /**
      * Provides the connection state of this MQTT client. When the state is [Connected] this implies that an IP
@@ -123,6 +168,9 @@ public class MqttClient internal constructor(
 
     @OptIn(ExperimentalAtomicApi::class)
     private val packetIdentifier = AtomicInt(0)
+
+    // Initialize with the default receive maximum
+    private var sendQuota = Semaphore(65535)
 
     private val publishReceivedPackets = mutableMapOf<UShort, Pubrec>()
 
@@ -184,7 +232,19 @@ public class MqttClient internal constructor(
         subscriptionIdentifier: SubscriptionIdentifier? = null,
         userProperties: UserProperties = UserProperties.EMPTY
     ): Result<Suback> {
-        val identifier = if ((subscriptionIdentifier != null) && !subscriptionIdentifierAvailable) {
+        if (!_isWildcardSubscriptionAvailable && filters.hasWildcard()) {
+            Logger.w {
+                "Requesting at least one wildcard subscription ($filters), but the server does not support it. " +
+                        "This will likely result in a DISCONNECT message from the server."
+            }
+        }
+        if (!_isSharedSubscriptionAvailable && filters.hasSharedTopic()) {
+            Logger.w {
+                "Requesting at least one shared subscription ($filters), but the server does not support it. " +
+                        "This will likely result in a DISCONNECT message from the server."
+            }
+        }
+        val identifier = if ((subscriptionIdentifier != null) && !_subscriptionIdentifierAvailable) {
             Logger.w(throwable = IllegalArgumentException("Ignoring $subscriptionIdentifier")) {
                 "Ignoring subscription identifier, as the server doesn't support it"
             }
@@ -309,7 +369,7 @@ public class MqttClient internal constructor(
                 Publish(
                     isDupMessage = if (actualQoS == QoS.AT_MOST_ONCE) false else isDupMessage,  // MQTT-3.3.1-2
                     qoS = actualQoS,
-                    isRetainMessage = request.isRetainMessage,
+                    isRetainMessage = _isRetainAvailable && request.isRetainMessage,
                     packetIdentifier = if (actualQoS == QoS.AT_MOST_ONCE) null else nextPacketIdentifier(),
                     topic = request.topic,
                     payloadFormatIndicator = request.payloadFormatIndicator,
@@ -332,6 +392,7 @@ public class MqttClient internal constructor(
     }
 
     private suspend fun sendAtLeastOnceMessage(inFlight: InFlightPublish): PublishResponse {
+        acquireSendQuotaSafe()
         val publish = inFlight.source
 
         val puback = awaitResponseOf<Puback>({ it.isResponseFor<Puback>(publish) }) {
@@ -345,6 +406,7 @@ public class MqttClient internal constructor(
     }
 
     private suspend fun sendExactlyOnceMessage(inFlight: InFlightPublish): PublishResponse {
+        acquireSendQuotaSafe()
         val publish = inFlight.source
 
         awaitResponseOf<Pubrec>({ it.isResponseFor<Pubrec>(publish) }) {
@@ -443,6 +505,10 @@ public class MqttClient internal constructor(
 
             _subscriptionIdentifierAvailable = connack.subscriptionIdentifierAvailable.isAvailable()
             _receiveMaximum = connack.receiveMaximum?.value ?: UShort.MAX_VALUE
+            _isRetainAvailable = connack.retainAvailable?.value ?: true
+            _isWildcardSubscriptionAvailable = connack.wildcardSubscriptionAvailable?.value ?: true
+            _isSharedSubscriptionAvailable = connack.sharedSubscriptionAvailable?.value ?: true
+            _maxPacketSize = connack.maximumPacketSize?.value ?: UInt.MAX_VALUE
 
             Logger.i {
                 "Received server parameters: " +
@@ -450,7 +516,12 @@ public class MqttClient internal constructor(
                         "keepAlive=$keepAlive, " +
                         "serverTopicAliasMaximum=${serverTopicAliasMaximum.value}, " +
                         "assignedClientIdentifier=${connack.assignedClientIdentifier?.value ?: "''"}, " +
-                        "subscriptionIdentifierAvailable=$_subscriptionIdentifierAvailable"
+                        "subscriptionIdentifierAvailable=$_subscriptionIdentifierAvailable, " +
+                        "receiveMaximum=$_receiveMaximum, " +
+                        "retainAvailable=$_isRetainAvailable, " +
+                        "maximumPacketSize=$_maxPacketSize, " +
+                        "wildcardSubscriptionAvailable=$_isWildcardSubscriptionAvailable, " +
+                        "sharedSubscriptionAvailable=$_isSharedSubscriptionAvailable"
             }
         }
 
@@ -546,9 +617,41 @@ public class MqttClient internal constructor(
                 session.releaseIncomingPacketId(packet)
             }
 
+            is Puback -> {
+                releaseSendQuotaSafe()  // See chapter 4.9 Flow Control
+                receivedPackets.emit(packet)
+            }
+
+            is Pubcomp -> {
+                releaseSendQuotaSafe()  // See chapter 4.9 Flow Control
+                receivedPackets.emit(packet)
+            }
+
+            is Pubrec -> {
+                // See chapter 4.9 Flow Control
+                if (packet.reason >= UnspecifiedError) {
+                    releaseSendQuotaSafe()
+                }
+                receivedPackets.emit(packet)
+            }
+
             else -> {
                 receivedPackets.emit(packet)
             }
+        }
+    }
+
+    private suspend fun acquireSendQuotaSafe() {
+        sendQuota.acquire()
+    }
+
+    private fun releaseSendQuotaSafe() {
+        try {
+            sendQuota.release()
+        } catch (_: IllegalStateException) {
+            // "The attempt to increment above the initial send quota might be caused by the
+            // re-transmission of a PUBREL packet after a new Network Connection is established."
+            // Hence, we might call release() too often, which results in this IllegalStateException.
         }
     }
 

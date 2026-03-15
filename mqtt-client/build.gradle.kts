@@ -2,6 +2,7 @@
 
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinMultiplatform
+import com.vanniktech.maven.publish.SourcesJar
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.net.URI
@@ -17,10 +18,6 @@ plugins {
 
 kotlin {
     explicitApi()
-
-    compilerOptions {
-        optIn.add("kotlin.time.ExperimentalTime")
-    }
 
     jvm()
 
@@ -61,12 +58,19 @@ kotlin {
         commonMain {
             dependencies {
                 api(projects.mqttCore)
+                implementation(libs.kotlinx.coroutines.core)
             }
         }
         commonTest {
             dependencies {
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
+            }
+        }
+        jvmTest {
+            dependencies {
+                implementation(libs.testcontainers)
+                implementation(libs.testcontainers.junit)
             }
         }
     }
@@ -94,7 +98,7 @@ mavenPublishing {
     configure(
         KotlinMultiplatform(
             javadocJar = JavadocJar.Dokka("dokkaGenerate"),
-            sourcesJar = true,
+            sourcesJar = SourcesJar.Sources(),
         )
     )
 }

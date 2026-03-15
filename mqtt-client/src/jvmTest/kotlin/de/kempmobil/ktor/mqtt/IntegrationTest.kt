@@ -1,5 +1,6 @@
 package de.kempmobil.ktor.mqtt
 
+import co.touchlab.kermit.Severity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
@@ -10,6 +11,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlinx.io.bytestring.decodeToString
+import org.junit.AfterClass
+import org.junit.BeforeClass
 import kotlin.random.Random
 import kotlin.random.nextUInt
 import kotlin.test.Test
@@ -20,14 +23,71 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-expect fun createClient(
-    id: String,
-    configurator: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = { }
-): MqttClient?
-
 class IntegrationTest {
 
+    companion object {
+
+        var mosquitto: MosquittoContainer? = null
+
+        @JvmStatic
+        @BeforeClass
+        fun startServer() {
+            if (System.getenv("SKIP_INTEGRATION_TEST") != "true") {
+                mosquitto = MosquittoContainer().also { it.start() }
+            }
+        }
+
+        @JvmStatic
+        @AfterClass
+        fun stopServer() {
+            mosquitto?.let {
+                println(it.logs)
+                it.stop()
+            }
+        }
+    }
+
     private val TIMEOUT = 60.seconds
+    private val user = MosquittoContainer.USER
+    private val passwd = MosquittoContainer.PASSWORD
+
+    @Test
+    fun `connect successfully`() = runConnectionTest(username = user, password = passwd) { client ->
+        val connected = client.connect()
+
+        assertTrue(connected.isSuccess)
+        assertEquals(Success, connected.getOrThrow().reason)
+    }
+
+    @Test
+    fun `connect successfully via TLS`() = runConnectionTest(
+        username = user,
+        password = passwd,
+        port = mosquitto?.tlsPort ?: 0
+    ) { client ->
+        val connected = client.connect()
+
+        assertTrue(connected.isSuccess)
+        assertEquals(Success, connected.getOrThrow().reason)
+    }
+
+    @Test
+    fun `connect returns NotAuthorized when using wrong credentials`() =
+        runConnectionTest(username = user, password = "invalid") { client ->
+            val connected = client.connect()
+
+            assertTrue(connected.isSuccess)
+            assertEquals(NotAuthorized, connected.getOrThrow().reason)
+        }
+
+    @Test
+    fun `connect successfully without credentials on anonymous port`() =
+        runConnectionTest(username = null, password = null, port = mosquitto?.defaultPortNoAuth ?: 0) { client ->
+            val connected = client.connect()
+
+            assertTrue(connected.isSuccess)
+            assertEquals(Success, connected.getOrThrow().reason)
+        }
 
     @Test
     fun `reconnect after disconnect returns proper connection states`() = runClientTest("reconnect") { client ->
@@ -110,16 +170,43 @@ class IntegrationTest {
 
     // ---- Helper functions -------------------------------------------------------------------------------------------
 
+    private fun createClient(
+        clientId: String,
+        username: String?,
+        password: String?,
+        port: Int = mosquitto?.defaultPort ?: 0,
+        configurator: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit
+    ): MqttClient? {
+        return mosquitto?.let { container ->
+            MqttClient(container.host, port) {
+                logging {
+                    minSeverity = Severity.Verbose
+                }
+                if (port == (mosquitto?.tlsPort ?: 0)) {
+                    connection {
+                        tls {
+                            trustManager = NoTrustManager
+                        }
+                    }
+                }
+                this.username = username
+                this.password = password
+                this.clientId = clientId
+                configurator()
+            }
+        } ?: run {
+            null
+        }
+    }
+
     private suspend fun TestScope.publishReceiveTest(qoS: QoS, sender: MqttClient, receiver: MqttClient) {
         val topic = "topic/${sender.clientId}/${qoS.value}"
         sender.assertConnected()
         receiver.assertConnected()
 
-        // TODO: once chapter 4.9 "Flow Control" is implemented, we can use any value instead of the receive maximum.
-        //   This is only required, because we run each sender in its own coroutine scope, if we'd run the sender fully
-        //   sequential, then all messages are acknowledged before sending a new message and hence we can send any number
-        //   of messages!
-        val messages = receiver.receiveMaximum.toInt().coerceAtMost(100)
+        // Make sure to send more messages in parallel than the "receive maximum" of the server to test chap. 4.9
+        val messages = receiver.receiveMaximum.toInt() * 5
+        println("Sending $messages message with QoS $qoS to server with a receive maximum of ${receiver.receiveMaximum}")
 
         receiver.subscribe(buildFilterList {
             add(topic = topic, qoS = qoS)
@@ -170,13 +257,40 @@ class IntegrationTest {
             }
     }
 
+    private fun runConnectionTest(
+        username: String?,
+        password: String?,
+        port: Int = mosquitto?.defaultPort ?: 0,
+        test: suspend TestScope.(client: MqttClient) -> Unit
+    ) {
+        val client = createClient(
+            "connect-${Random.nextUInt()}",
+            username = username,
+            password = password,
+            port = port,
+            configurator = { })
+
+        if (client != null) {
+            runTest(timeout = TIMEOUT) {
+                client.use {
+                    test(it)
+                }
+            }
+        }
+    }
+
     private fun runClientTest(
         clientId: String,
         timeout: Duration = TIMEOUT,
         configurator: MqttClientConfigBuilder<MqttEngineConfig>.() -> Unit = { },
         test: suspend TestScope.(client: MqttClient) -> Unit
     ) {
-        val client = createClient("$clientId-${Random.nextUInt()}", configurator)
+        val client = createClient(
+            "$clientId-${Random.nextUInt()}",
+            username = user,
+            password = passwd,
+            configurator = configurator
+        )
 
         if (client != null) {
             runTest(timeout = timeout) {
@@ -199,8 +313,14 @@ class IntegrationTest {
         timeout: Duration = TIMEOUT,
         test: suspend TestScope.(client1: MqttClient, client2: MqttClient) -> Unit
     ) {
-        val client1 = createClient("$clientId1-${Random.nextUInt()}", configurator1)
-        val client2 = createClient("$clientId2-${Random.nextUInt()}", configurator2)
+        val client1 = createClient(
+            "$clientId1-${Random.nextUInt()}", username = user,
+            password = passwd, configurator = configurator1
+        )
+        val client2 = createClient(
+            "$clientId2-${Random.nextUInt()}", username = user,
+            password = passwd, configurator = configurator2
+        )
 
         if ((client1 != null) && (client2 != null)) {
             runTest(timeout = timeout) {

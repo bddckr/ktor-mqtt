@@ -3,12 +3,12 @@ ktormqtt = "1.0.0"
 
 agp = "8.13.2"
 kotlin = "2.3.10"
-ktor = "3.4.0"
+ktor = "3.4.1"
 kotlinx-coroutines = "1.10.2"
 kotlinx-io = "0.9.0"
 kotlinx-browser = "0.5.0"
 slf4j = "2.0.17"
-kermit = "2.0.8"
+kermit = "2.1.0"
 mokkery = "3.2.0"
 testcontainers = "2.0.3"
 versions = "0.53.0"
@@ -21,11 +21,11 @@ android-compileSdk = "36"
 android-minSdk = "21"
 #noinspection OldTargetApi
 android-targetSdk = "35"
-androidx-activity = "1.12.2"
+androidx-activity = "1.13.0"
 androidx-lifecycle = "2.9.6"
 androidx-material = "1.7.3"
 composeHotReload = "1.0.0"
-composeMultiplatform = "1.10.0"
+composeMultiplatform = "1.10.2"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

@@ -9,7 +9,7 @@ import java.net.URI
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kover)
     alias(libs.plugins.vanniktech)
     alias(libs.plugins.dokka)
@@ -19,17 +19,18 @@ kotlin {
     explicitApi()
 
     jvm()
-
     android {
-        namespace = "de.kempmobil.ktor.mqtt.core"
+        namespace = "de.kempmobil.ktor.mqtt"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_1_8)
+            jvmTarget.set(
+                JvmTarget.JVM_1_8
+            )
         }
+        withHostTest { }  // Enables unit tests for Android
     }
-
     if (System.getenv("INCLUDE_APPLE")?.toBoolean() == true) {
         listOf(
             iosX64(),

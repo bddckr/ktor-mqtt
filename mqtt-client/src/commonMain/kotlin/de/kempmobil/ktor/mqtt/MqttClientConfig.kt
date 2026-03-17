@@ -23,7 +23,7 @@ public interface MqttClientConfig {
     public val pingResponseTimeout: Duration
     public val ackMessageTimeout: Duration
     public val willMessage: WillMessage?
-    public val willQqS: QoS
+    public val willQoS: QoS
     public val retainWillMessage: Boolean
     public val keepAliveSeconds: UShort
     public val username: String?
@@ -152,7 +152,7 @@ public class MqttClientConfigBuilder<out T : MqttEngineConfig>(
             pingResponseTimeout = pingResponseTimeout,
             ackMessageTimeout = ackMessageTimeout,
             willMessage = willMessageBuilder?.build(),
-            willQqS = willMessageBuilder?.willOqS ?: QoS.AT_MOST_ONCE,
+            willQoS = willMessageBuilder?.willQoS ?: QoS.AT_MOST_ONCE,
             retainWillMessage = willMessageBuilder?.retainWillMessage ?: false,
             keepAliveSeconds = keepAliveSeconds,
             username = username,
@@ -179,7 +179,7 @@ private class MqttClientConfigImpl(
     override val pingResponseTimeout: Duration,
     override val ackMessageTimeout: Duration,
     override val willMessage: WillMessage?,
-    override val willQqS: QoS,
+    override val willQoS: QoS,
     override val retainWillMessage: Boolean,
     override val keepAliveSeconds: UShort,
     override val username: String? = null,

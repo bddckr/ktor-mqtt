@@ -21,7 +21,7 @@ public fun buildWillMessage(topic: String, init: WillMessageBuilder.() -> Unit):
 /**
  * Will message builder
  *
- * @property willOqS the QoS level to be used when publishing the Will Message
+ * @property willQoS the QoS level to be used when publishing the Will Message
  * @property retainWillMessage specifies if the Will Message is to be retained when it is published
  */
 @MqttDslMarker
@@ -31,7 +31,7 @@ public class WillMessageBuilder(private val topic: String) {
 
     private var payload: ByteString = EMPTY_PAYLOAD
 
-    public var willOqS: QoS = QoS.AT_MOST_ONCE
+    public var willQoS: QoS = QoS.AT_MOST_ONCE
 
     public var retainWillMessage: Boolean = false
 

@@ -318,7 +318,7 @@ public class MqttClient internal constructor(
         return Connect(
             isCleanStart = isCleanStart,
             willMessage = config.willMessage,
-            willQqS = config.willQqS,
+            willQoS = config.willQoS,
             retainWillMessage = config.retainWillMessage,
             keepAliveSeconds = config.keepAliveSeconds,
             clientId = config.clientId,
@@ -734,7 +734,7 @@ internal class ClientSample {
 
             willMessage("topics/last-will") {
                 retainWillMessage = true
-                willOqS = QoS.AT_MOST_ONCE
+                willQoS = QoS.AT_MOST_ONCE
                 payload("Last will message of test-client")
                 properties {
                     willDelayInterval = 10.seconds

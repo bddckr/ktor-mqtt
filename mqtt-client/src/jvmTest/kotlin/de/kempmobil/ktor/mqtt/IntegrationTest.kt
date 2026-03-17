@@ -143,7 +143,7 @@ class IntegrationTest {
             clientId1 = "will-sender",
             configurator1 = {
                 willMessage("will/topic") {
-                    willOqS = QoS.EXACTLY_ONE
+                    willQoS = QoS.EXACTLY_ONE
                     payload("my-last-will-message")
                 }
             },

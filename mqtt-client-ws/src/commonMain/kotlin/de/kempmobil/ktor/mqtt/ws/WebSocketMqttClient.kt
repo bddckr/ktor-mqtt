@@ -88,7 +88,7 @@ internal class WsSample {
 
             willMessage("topics/last-will") {
                 retainWillMessage = true
-                willOqS = QoS.AT_MOST_ONCE
+                willQoS = QoS.AT_MOST_ONCE
                 payload("Last will message of test-client")
                 properties {
                     willDelayInterval = 10.seconds

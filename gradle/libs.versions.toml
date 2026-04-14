@@ -1,5 +1,5 @@
 [versions]
-ktormqtt = "1.1.0-agp9"
+ktormqtt = "1.1.0"
 
 agp = "9.1.1"
 kotlin = "2.3.20"
@@ -61,8 +61,9 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 
-# Wasm libraries
-kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser-wasm-js", version.ref = "kotlinx-browser" }
+# Wasm/JS libraries
+kotlinx-browser-wasm = { module = "org.jetbrains.kotlinx:kotlinx-browser-wasm-js", version.ref = "kotlinx-browser" }
+kotlinx-browser-js = { module = "org.jetbrains.kotlinx:kotlinx-browser-js", version.ref = "kotlinx-browser" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

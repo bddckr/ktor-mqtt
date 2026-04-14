@@ -60,6 +60,13 @@ kotlin {
             }
         }
     }
+    if (System.getenv("INCLUDE_JS")?.toBoolean() == true) {
+        js {
+            browser {}
+            nodejs {}
+            binaries.executable()
+        }
+    }
 
     sourceSets {
         commonMain {
@@ -86,7 +93,14 @@ kotlin {
         if (System.getenv("INCLUDE_WASM")?.toBoolean() == true) {
             wasmJsMain {
                 dependencies {
-                    implementation(libs.kotlinx.browser)
+                    implementation(libs.kotlinx.browser.wasm)
+                }
+            }
+        }
+        if (System.getenv("INCLUDE_JS")?.toBoolean() == true) {
+            jsMain {
+                dependencies {
+                    implementation(libs.kotlinx.browser.js)
                 }
             }
         }

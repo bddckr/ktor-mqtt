@@ -51,6 +51,12 @@ kotlin {
             browser() // Target the browser environment
         }
     }
+    if (System.getenv("INCLUDE_JS")?.toBoolean() == true) {
+        js {
+            browser {}
+            nodejs {}
+        }
+    }
 
     sourceSets {
         commonMain {

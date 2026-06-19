@@ -16,7 +16,7 @@ plugins {
 }
 
 // Local maven repository to publish artifacts to
-val repoDirectory by extra { "${project.rootDir}/repo" }
+extra.set("repoDirectory", "${project.rootDir}/repo")
 
 dependencies {
     kover(projects.mqttCore)

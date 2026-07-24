@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "1.1.0"
 
-agp = "9.3.0"
+agp = "9.3.1"
 kotlin = "2.4.10"
 ktor = "3.5.1"
 kotlinx-coroutines = "1.11.0"
@@ -12,7 +12,7 @@ kermit = "2.1.0"
 mokkery = "3.4.2"
 testcontainers = "2.0.5"
 versions = "0.54.0"
-kover = "0.9.8"
+kover = "0.9.9"
 vanniktech = "0.37.0"
 dokka = "2.2.0"
 

@@ -1,7 +1,7 @@
 [versions]
 ktormqtt = "1.1.0"
 
-agp = "9.3.2"
+agp = "9.4.0"
 kotlin = "2.4.10"
 ktor = "3.5.2"
 kotlinx-coroutines = "1.11.0"
@@ -22,7 +22,7 @@ android-minSdk = "24"
 androidx-activity = "1.13.0"
 androidx-lifecycle = "2.11.0"
 androidx-material = "1.7.3"
-composeMultiplatform = "1.11.1"
+composeMultiplatform = "1.12.0"
 material3 = "1.9.0"
 
 [libraries]
